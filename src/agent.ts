@@ -9,10 +9,11 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-// The assistant runs on OpenAI (cheaper); Claude Sonnet is the fallback if OpenAI fails.
-// Both get the same tools, system prompt and speaker binding.
-const OPENAI_MODEL = process.env.HEARTH_OPENAI_MODEL ?? 'gpt-4.1'
+// A voice turn has to come back fast; Sonnet keeps the round trip short.
 const MODEL = 'claude-sonnet-5-5'
+// If the Anthropic call fails the console falls back to OpenAI with the same tools,
+// system prompt and speaker binding, so the demo keeps working.
+const OPENAI_MODEL = process.env.HEARTH_OPENAI_MODEL ?? 'gpt-4.1'
 
 export interface RpcEntry { dir: '>' | '<'; at: number; body: unknown }
 export interface ToolEvent { name: string; args: Record<string, unknown>; text: string; structured?: unknown; isError?: boolean; ms: number; uiUri?: string }
@@ -95,14 +96,14 @@ export async function runTurn(opts: { mcpUrl: string; speaker: string; history: 
       })
       return final.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join(' ').trim()
     }
-    // OpenAI first (cheaper); Claude only if OpenAI fails before any tool ran, so nothing runs twice
-    if (!process.env.OPENAI_API_KEY) return { reply: await claudeTurn(), events, rpc, model: MODEL }
+    // Claude first; if it fails (credit, rate limit, outage) before any tool ran, the same
+    // turn runs on OpenAI, so nothing runs twice
     try {
-      return { reply: await openaiTurn(system, messages, tools, deviceBound.callTool), events, rpc, model: OPENAI_MODEL }
-    } catch (e) {
-      if (!process.env.ANTHROPIC_API_KEY || events.length) throw e
-      console.warn('OpenAI failed, falling back to Claude:', (e as Error).message)
       return { reply: await claudeTurn(), events, rpc, model: MODEL }
+    } catch (e) {
+      if (!process.env.OPENAI_API_KEY || events.length) throw e
+      console.warn('Anthropic failed, falling back to OpenAI:', (e as Error).message)
+      return { reply: await openaiTurn(system, messages, tools, deviceBound.callTool), events, rpc, model: OPENAI_MODEL }
     }
   } finally {
     await client.close().catch(() => {})
