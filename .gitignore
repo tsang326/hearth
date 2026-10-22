@@ -8,3 +8,4 @@ dist/
 CLAUDE.md
 .mcp.json
 video/
+.vercel
