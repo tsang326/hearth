@@ -86,7 +86,14 @@ document.addEventListener('click', async (e) => {
   await fetch(b.dataset.u, { headers: { accept: 'application/json' } })
   load()
 })
-load(); setInterval(load, 2000)
+// Poll only while someone is looking (free Redis quota). Embedded in the console, the
+// console's activity counts; opened alone, this page's own.
+let lastActive = Date.now()
+for (const ev of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) addEventListener(ev, () => { lastActive = Date.now() }, { passive: true })
+const active = () => { try { if (window.parent !== window && window.parent.__lastActive) return Math.max(lastActive, window.parent.__lastActive) } catch {} return lastActive }
+const looking = () => document.visibilityState === 'visible' && Date.now() - active() < 10 * 60_000
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { lastActive = Date.now(); load() } })
+load(); setInterval(() => { if (looking()) load() }, 4000)
 </script>
 </body>
 </html>

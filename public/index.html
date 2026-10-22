@@ -280,6 +280,8 @@ async function send(text) {
     if (r.events.find((ev) => ev.name === 'checkout' && ev.structured?.outcome === 'ready_for_checkout')) add('✅ Ready for checkout. Hearth never places orders itself.', 'toast ok')
     history.push({ role: 'user', text, speaker }, { role: 'assistant', text: r.reply })
     showRpc(r.rpc); refresh()
+    // Show a new request on the phone at once rather than at its next poll
+    try { $('phoneview').contentWindow.load() } catch {}
     if ($('tts').checked && 'speechSynthesis' in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(r.reply); u.rate = 1.05; speechSynthesis.speak(u) }
   } catch (e) {
     thinking.remove(); add('Something went wrong. Try again.', 'toast')
@@ -300,7 +302,13 @@ else {
   rec.onend = () => $('mic').classList.remove('live')
   $('mic').onclick = () => { $('mic').classList.add('live'); rec.start() }
 }
-refresh(); setInterval(refresh, 3000)
+// Poll only while someone is looking: the household lives in a free Redis with a command
+// quota, and a forgotten tab should not spend it. The embedded phone reads __lastActive too.
+window.__lastActive = Date.now()
+for (const ev of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) addEventListener(ev, () => { window.__lastActive = Date.now() }, { passive: true })
+const looking = () => document.visibilityState === 'visible' && Date.now() - window.__lastActive < 10 * 60_000
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { window.__lastActive = Date.now(); refresh() } })
+refresh(); setInterval(() => { if (looking()) refresh() }, 5000)
 </script>
 </body>
 </html>
