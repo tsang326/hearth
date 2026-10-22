@@ -11,6 +11,9 @@ import { join } from 'node:path'
 
 // A voice turn has to come back fast; Sonnet keeps the round trip short.
 const MODEL = 'claude-sonnet-5-5'
+// If the Anthropic call fails (credit, rate limit, outage) the console falls back to OpenAI
+// with the same tools, system prompt and speaker binding, so the demo keeps working.
+const FALLBACK_MODEL = process.env.HEARTH_OPENAI_MODEL ?? 'gpt-4.1-mini'
 
 export interface RpcEntry { dir: '>' | '<'; at: number; body: unknown }
 export interface ToolEvent { name: string; args: Record<string, unknown>; text: string; structured?: unknown; isError?: boolean; ms: number; uiUri?: string }
@@ -82,19 +85,56 @@ export async function runTurn(opts: { mcpUrl: string; speaker: string; history: 
       ...opts.history.slice(-8).map((t) => ({ role: t.role, content: t.role === 'user' && t.speaker ? `[${MEMBERS[t.speaker] ?? t.speaker}] ${t.text}` : t.text })),
       { role: 'user' as const, content: `[${MEMBERS[opts.speaker] ?? opts.speaker}] ${opts.utterance}` },
     ]
-    const final = await anthropic.beta.messages.toolRunner({
-      model: MODEL,
-      max_tokens: 1024,
-      system,
-      tools: mcpTools(tools as never, deviceBound as never),
-      messages,
-      max_iterations: 6,
-    })
-    const reply = final.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join(' ').trim()
-    return { reply, events, rpc }
+    try {
+      const final = await anthropic.beta.messages.toolRunner({
+        model: MODEL,
+        max_tokens: 1024,
+        system,
+        tools: mcpTools(tools as never, deviceBound as never),
+        messages,
+        max_iterations: 6,
+      })
+      const reply = final.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join(' ').trim()
+      return { reply, events, rpc, model: MODEL }
+    } catch (e) {
+      // Only retry a turn that has not touched the household yet, so no tool runs twice
+      if (!process.env.OPENAI_API_KEY || events.length) throw e
+      console.warn('Anthropic failed, falling back to OpenAI:', (e as Error).message)
+      const reply = await openaiTurn(system, messages, tools, deviceBound.callTool)
+      return { reply, events, rpc, model: FALLBACK_MODEL }
+    }
   } finally {
     await client.close().catch(() => {})
   }
+}
+
+type McpTool = { name: string; description?: string; inputSchema: unknown }
+type ChatMsg = { role: string; content: string | null; tool_calls?: { id: string; function: { name: string; arguments: string } }[]; tool_call_id?: string }
+
+/** The same turn over OpenAI Chat Completions with function calling (raw HTTP, no extra SDK). */
+async function openaiTurn(system: string, messages: { role: string; content: string }[], tools: McpTool[],
+  callTool: (p: { name: string; arguments?: Record<string, unknown> }) => Promise<unknown>) {
+  const fns = tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description ?? '', parameters: t.inputSchema } }))
+  const msgs: ChatMsg[] = [{ role: 'system', content: system }, ...messages]
+  for (let i = 0; i < 6; i++) {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: FALLBACK_MODEL, messages: msgs, tools: fns, max_tokens: 400 }),
+    })
+    if (!r.ok) throw new Error(`OpenAI ${r.status}: ${(await r.text()).slice(0, 200)}`)
+    const m = (await r.json()).choices[0].message as ChatMsg
+    msgs.push(m)
+    if (!m.tool_calls?.length) return (m.content ?? '').trim()
+    for (const c of m.tool_calls) {
+      let args: Record<string, unknown> = {}
+      try { args = JSON.parse(c.function.arguments || '{}') } catch {}
+      const res = (await callTool({ name: c.function.name, arguments: args }).catch((err: Error) => ({ content: [{ type: 'text', text: err.message }], isError: true }))) as { content?: unknown; structuredContent?: unknown; isError?: unknown }
+      const text = (res.content as { type: string; text?: string }[] | undefined)?.filter((x) => x.type === 'text').map((x) => x.text).join(' ') ?? ''
+      msgs.push({ role: 'tool', tool_call_id: c.id, content: JSON.stringify({ text, structured: res.structuredContent ?? null, isError: Boolean(res.isError) }) })
+    }
+  }
+  return 'Sorry, that took too many steps. Please try again.'
 }
 
 /** For the MCP App: proxy a tool call or a resource read through a real MCP session. */

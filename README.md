@@ -25,7 +25,7 @@ held list (frozen) ─► parent's phone (/phone) ─► secret approve/decline 
 | `src/server.ts` | **Self-hosted MCP server**, `@modelcontextprotocol/sdk` 1.32.1, protocol **2025-11-25**, Streamable HTTP at `/mcp`, stateless transport. Tools: `household_overview`, `suggest_meals` (MCP App), `cook_meal`, `update_pantry`, `remember`, `add_to_list`, `checkout`, `approval_status`. Tools answer from local data only (no model calls), in a few milliseconds. |
 | `src/ui.ts` | **MCP App** (`ext-apps` 1.7.5): the meal carousel. Its buttons call the server's own tools through the host. |
 | `skills/hearth/SKILL.md` | **Agent Skill** (open `SKILL.md` format) describing when and how to use Hearth. The simulated host reads it at runtime and adds it to the assistant's instructions. |
-| `src/agent.ts`, `public/index.html` | **Simulated Alexa+ experience**: a web host with voice in/out, a speaker picker standing in for voice recognition, Claude as the assistant (Anthropic SDK tool runner over the MCP tools), an MCP App bridge, and an inspector that shows every JSON-RPC message. |
+| `src/agent.ts`, `public/index.html` | **Simulated Alexa+ experience**: a web host with voice in/out, a speaker picker standing in for voice recognition, Claude as the assistant (Anthropic SDK tool runner over the MCP tools, falling back to OpenAI function calling with the same tools if the Anthropic call fails), an MCP App bridge, and an inspector that shows every JSON-RPC message. |
 | `src/domain.ts` | The household model and the spending rule. |
 | `public/phone.html` | The parent's phone: held lists with Approve / Decline. |
 
@@ -53,7 +53,7 @@ npm test                                  # domain rules: spending, holds, aller
 
 To try the MCP server alone, run `npx @modelcontextprotocol/inspector` and connect to `http://localhost:3000/mcp` (Streamable HTTP). No API key is needed for that.
 
-Deploying to Vercel: the functions are in `api/`. Set `ANTHROPIC_API_KEY` (console only) and connect an Upstash Redis store (`KV_REST_API_URL`, `KV_REST_API_TOKEN`). Optional: `HEARTH_PARENT_KEY` (parent phone key, default `parent-demo`), `HEARTH_CHAT_PER_IP_HOUR` / `HEARTH_CHAT_PER_HOUR` (console limits), `HEARTH_MCP_PER_IP_HOUR`.
+Deploying to Vercel: the functions are in `api/`. Set `ANTHROPIC_API_KEY` (console only; optional `OPENAI_API_KEY` as a fallback, model `HEARTH_OPENAI_MODEL`, default `gpt-4.1-mini`) and connect an Upstash Redis store (`KV_REST_API_URL`, `KV_REST_API_TOKEN`). Optional: `HEARTH_PARENT_KEY` (parent phone key, default `parent-demo`), `HEARTH_CHAT_PER_IP_HOUR` / `HEARTH_CHAT_PER_HOUR` (console limits), `HEARTH_MCP_PER_IP_HOUR`.
 
 State is in memory locally; set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (or Vercel KV variables) to persist it. Optional email to the approver: `RESEND_API_KEY`, `HEARTH_APPROVER_EMAIL`.
 
