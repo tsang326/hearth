@@ -108,11 +108,19 @@ export async function handleChat(req: IncomingMessage & { body?: unknown }, res:
   if (!b?.utterance || !MEMBER_IDS.includes(String(b.speaker))) return json(res, 400, { error: 'speaker and utterance required' })
   if (b.utterance.length > 500) return json(res, 400, { error: 'too long' })
   const household = householdId(b.h)
-  // The console spends the deployer's model credits: cap it per visitor and overall
+  // The console spends the deployer's model credits: cap it per device (the browser's own
+  // household id), per IP, and overall, per hour and per day
   const ip = clientIp(req)
   const store = getStore()
-  if ((await store.hit(`ip:${ip}`)) > Number(process.env.HEARTH_CHAT_PER_IP_HOUR ?? 40) || (await store.hit('all')) > Number(process.env.HEARTH_CHAT_PER_HOUR ?? 400))
-    return json(res, 429, { error: 'The demo is busy, try again in a while. The MCP server at /mcp stays open.' })
+  const lim = (name: string, dflt: number) => Number(process.env[name] ?? dflt)
+  const over = async () =>
+    (await store.hit(`dev:${household}`)) > lim('HEARTH_CHAT_PER_DEVICE_HOUR', 30)
+    || (await store.hit(`dev:${household}`, 'day')) > lim('HEARTH_CHAT_PER_DEVICE_DAY', 80)
+    || (await store.hit(`ip:${ip}`)) > lim('HEARTH_CHAT_PER_IP_HOUR', 40)
+    || (await store.hit('all')) > lim('HEARTH_CHAT_PER_HOUR', 60)
+    || (await store.hit('all', 'day')) > lim('HEARTH_CHAT_PER_DAY', 150)
+  if (await over())
+    return json(res, 429, { error: 'The demo chat is resting for now, try again later. The MCP server at /mcp stays open, and the video shows the full flow.' })
   try {
     const out = await runTurn({ mcpUrl: mcpUrlFor(req, household), speaker: String(b.speaker), utterance: b.utterance, history: Array.isArray(b.history) ? (b.history as Turn[]).slice(-8).map((t) => ({ role: t?.role === 'assistant' ? 'assistant' : 'user', text: String(t?.text ?? '').slice(0, 500), speaker: MEMBER_IDS.includes(String(t?.speaker)) ? t.speaker : undefined })) : [] })
     json(res, 200, out)

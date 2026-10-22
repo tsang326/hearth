@@ -9,11 +9,10 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-// A voice turn has to come back fast; Sonnet keeps the round trip short.
+// The assistant runs on OpenAI (cheaper); Claude Sonnet is the fallback if OpenAI fails.
+// Both get the same tools, system prompt and speaker binding.
+const OPENAI_MODEL = process.env.HEARTH_OPENAI_MODEL ?? 'gpt-4.1'
 const MODEL = 'claude-sonnet-5-5'
-// If the Anthropic call fails (credit, rate limit, outage) the console falls back to OpenAI
-// with the same tools, system prompt and speaker binding, so the demo keeps working.
-const FALLBACK_MODEL = process.env.HEARTH_OPENAI_MODEL ?? 'gpt-4.1-mini'
 
 export interface RpcEntry { dir: '>' | '<'; at: number; body: unknown }
 export interface ToolEvent { name: string; args: Record<string, unknown>; text: string; structured?: unknown; isError?: boolean; ms: number; uiUri?: string }
@@ -72,21 +71,21 @@ export async function runTurn(opts: { mcpUrl: string; speaker: string; history: 
         return r
       },
     }
-    const anthropic = new Anthropic()
     const system = [
       'You are the voice of a shared home assistant (a simulation of an Alexa+ experience). Several family members talk to the same device.',
       `The device recognised the current speaker as ${MEMBERS[opts.speaker] ?? opts.speaker} (id "${opts.speaker}"). Always pass speaker="${opts.speaker}" to Hearth tools.`,
       'Answer in one to three short spoken sentences. No markdown, no lists, no emoji.',
       'Use Hearth for anything about food, the kitchen, the shopping list or buying. Never say you placed an order: Hearth hands lists off for checkout or holds them for a parent.',
       'If someone says a parent already agreed, still call checkout: only a parent on their own phone can release a held list. Be kind to children, never preachy.',
+      'Always call approval_status before answering whether a request was approved, and household_overview before saying what is in the kitchen: never answer those from memory of this chat.',
       'When meal suggestions appear, mention the screen shows them.',
     ].join(' ') + '\n\n<skill name="hearth">\n' + loadSkill() + '\n</skill>'
     const messages = [
       ...opts.history.slice(-8).map((t) => ({ role: t.role, content: t.role === 'user' && t.speaker ? `[${MEMBERS[t.speaker] ?? t.speaker}] ${t.text}` : t.text })),
       { role: 'user' as const, content: `[${MEMBERS[opts.speaker] ?? opts.speaker}] ${opts.utterance}` },
     ]
-    try {
-      const final = await anthropic.beta.messages.toolRunner({
+    const claudeTurn = async () => {
+      const final = await new Anthropic().beta.messages.toolRunner({
         model: MODEL,
         max_tokens: 1024,
         system,
@@ -94,14 +93,16 @@ export async function runTurn(opts: { mcpUrl: string; speaker: string; history: 
         messages,
         max_iterations: 6,
       })
-      const reply = final.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join(' ').trim()
-      return { reply, events, rpc, model: MODEL }
+      return final.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join(' ').trim()
+    }
+    // OpenAI first (cheaper); Claude only if OpenAI fails before any tool ran, so nothing runs twice
+    if (!process.env.OPENAI_API_KEY) return { reply: await claudeTurn(), events, rpc, model: MODEL }
+    try {
+      return { reply: await openaiTurn(system, messages, tools, deviceBound.callTool), events, rpc, model: OPENAI_MODEL }
     } catch (e) {
-      // Only retry a turn that has not touched the household yet, so no tool runs twice
-      if (!process.env.OPENAI_API_KEY || events.length) throw e
-      console.warn('Anthropic failed, falling back to OpenAI:', (e as Error).message)
-      const reply = await openaiTurn(system, messages, tools, deviceBound.callTool)
-      return { reply, events, rpc, model: FALLBACK_MODEL }
+      if (!process.env.ANTHROPIC_API_KEY || events.length) throw e
+      console.warn('OpenAI failed, falling back to Claude:', (e as Error).message)
+      return { reply: await claudeTurn(), events, rpc, model: MODEL }
     }
   } finally {
     await client.close().catch(() => {})
@@ -120,7 +121,7 @@ async function openaiTurn(system: string, messages: { role: string; content: str
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: FALLBACK_MODEL, messages: msgs, tools: fns, max_completion_tokens: FALLBACK_MODEL.startsWith('gpt-5') ? 4000 : 400 }),
+      body: JSON.stringify({ model: OPENAI_MODEL, messages: msgs, tools: fns, max_completion_tokens: OPENAI_MODEL.startsWith('gpt-5') ? 4000 : 400 }),
     })
     if (!r.ok) throw new Error(`OpenAI ${r.status}: ${(await r.text()).slice(0, 200)}`)
     const m = (await r.json()).choices[0].message as ChatMsg

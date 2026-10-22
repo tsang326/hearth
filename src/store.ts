@@ -4,8 +4,8 @@ import { Redis } from '@upstash/redis'
 import { seedHousehold, type Household } from './domain.js'
 
 export interface Store {
-  /** Count one use of `key` in the current hour; returns the count so far. */
-  hit(key: string): Promise<number>
+  /** Count one use of `key` in the current hour (or day); returns the count so far. */
+  hit(key: string, period?: 'hour' | 'day'): Promise<number>
   get(id: string): Promise<Household>
   /** Like get, but never writes: a household nobody has used yet is shown as a fresh seed. */
   peek(id: string): Promise<Household>
@@ -19,12 +19,12 @@ const key = (id: string) => `hearth:household:${id}`
 const TTL_SECONDS = 7 * 86_400
 const stale = (h: Household) => !h.seededAt || Date.now() - Date.parse(h.seededAt) > 86_400_000
 
-const hourKey = (k: string) => `hearth:rl:${k}:${new Date().toISOString().slice(0, 13)}`
+const periodKey = (k: string, period: 'hour' | 'day') => `hearth:rl:${k}:${new Date().toISOString().slice(0, period === 'day' ? 10 : 13)}`
 
 class MemoryStore implements Store {
   private m = new Map<string, Household>()
   private hits = new Map<string, number>()
-  async hit(k: string) { const key = hourKey(k); const n = (this.hits.get(key) ?? 0) + 1; this.hits.set(key, n); return n }
+  async hit(k: string, period: 'hour' | 'day' = 'hour') { const key = periodKey(k, period); const n = (this.hits.get(key) ?? 0) + 1; this.hits.set(key, n); return n }
   async get(id: string) {
     if (!this.m.has(id) || stale(this.m.get(id)!)) this.m.set(id, seedHousehold(id))
     return structuredClone(this.m.get(id)!)
@@ -36,7 +36,7 @@ class MemoryStore implements Store {
 
 class RedisStore implements Store {
   constructor(private r: Redis) {}
-  async hit(k: string) { const key = hourKey(k); const n = await this.r.incr(key); if (n === 1) await this.r.expire(key, 3600); return n }
+  async hit(k: string, period: 'hour' | 'day' = 'hour') { const key = periodKey(k, period); const n = await this.r.incr(key); if (n === 1) await this.r.expire(key, period === 'day' ? 2 * 86_400 : 3600); return n }
   async get(id: string) {
     const h = await this.r.get<Household>(key(id))
     if (h && !stale(h)) return h
