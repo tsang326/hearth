@@ -23,14 +23,15 @@ export function mealsHtml(): string {
   if (cached) return cached
   cached = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-:root{color-scheme:light dark;--bg:#fff;--fg:#14161c;--muted:#5b6170;--card:#f4f5f8;--accent:#e8590c;--ok:#2b8a3e}
-@media (prefers-color-scheme:dark){:root{--bg:#111318;--fg:#eef0f4;--muted:#9aa1b0;--card:#1b1e26}}
+:root{color-scheme:light dark;--bg:#fffaf5;--fg:#1c1714;--muted:#7d7166;--card:#fff;--line:#efe5da;--accent:#e2531a;--soon:#b65a0e;--ok:#1f8a5a}
+@media (prefers-color-scheme:dark){:root{--bg:#120f0d;--fg:#f6efe7;--muted:#a8998a;--card:#211a15;--line:#352b23;--accent:#ff8a3d;--soon:#f5b840;--ok:#4cc38a}}
 body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg)}
 .row{display:flex;gap:12px;overflow-x:auto;padding:12px;scroll-snap-type:x mandatory}
-.card{flex:0 0 220px;scroll-snap-align:start;background:var(--card);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.card{flex:0 0 220px;scroll-snap-align:start;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:8px}
 .emoji{font-size:34px}.t{font-weight:700;font-size:15px}.m{font-size:12px;color:var(--muted)}
-.soon{font-size:12px;color:var(--accent)}.miss{font-size:12px;color:var(--muted)}
-button{border:0;border-radius:10px;padding:8px 10px;font-weight:600;cursor:pointer;background:var(--accent);color:#fff}
+.soon{font-size:12px;color:var(--soon);font-weight:600}.miss{font-size:12px;color:var(--muted)}
+button{border:0;border-radius:12px;padding:9px 10px;font-weight:700;cursor:pointer;background:var(--accent);color:#fff;margin-top:auto}
+button+button{margin-top:0}
 button.sec{background:transparent;color:var(--fg);border:1px solid var(--muted)}
 .done{color:var(--ok);font-size:12px;font-weight:600}.head{padding:10px 14px 0;font-size:13px;color:var(--muted)}
 </style></head><body><div class="head" id="head">Loading meals…</div><div class="row" id="row"></div>

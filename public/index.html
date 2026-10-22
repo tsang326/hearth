@@ -4,91 +4,222 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Hearth — shared kitchen memory for the home assistant</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>">
 <style>
-:root{--bg:#0d0f14;--panel:#151821;--line:#262a36;--fg:#eef0f5;--muted:#8f96a8;--accent:#ff7a2f;--ok:#39c071;--warn:#ffb000;--bad:#ff5d5d}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 -apple-system,system-ui,sans-serif}
-header{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line)}
-header h1{font-size:18px;margin:0}header .tag{color:var(--muted);font-size:13px}header a{margin-left:auto;color:var(--accent);font-size:13px}
-main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;padding:16px 20px;max-width:1500px;margin:0 auto}
-@media (max-width:900px){main{grid-template-columns:1fr}}
-.device{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:640px}
-.who{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.who .lbl{color:var(--muted);font-size:13px}
-.chip{border:1px solid var(--line);background:transparent;color:var(--fg);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:14px}
-.chip.on{background:var(--accent);border-color:var(--accent);color:#111;font-weight:700}
-.screen{flex:1;background:#0a0c10;border-radius:16px;padding:14px;overflow:auto;display:flex;flex-direction:column;gap:10px;min-height:360px}
-.msg{max-width:85%;padding:9px 13px;border-radius:14px}.u{align-self:flex-end;background:#232838}.a{align-self:flex-start;background:#1c2a22}
-.msg .by{font-size:11px;color:var(--muted);margin-bottom:2px}
-.tool{align-self:flex-start;font-size:12px;color:var(--muted);border-left:2px solid var(--line);padding-left:8px}
-.tool b{color:var(--fg)}.held{color:var(--warn)}.ready{color:var(--ok)}
-iframe.app{width:100%;border:0;border-radius:12px;background:#fff;min-height:260px}
-.bar{display:flex;gap:8px}.bar input{flex:1;background:#0a0c10;border:1px solid var(--line);color:var(--fg);border-radius:12px;padding:10px 12px;font-size:15px}
-.bar button{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
-#mic{background:#232838;color:var(--fg)}#mic.live{background:var(--bad)}#send{background:var(--accent);color:#111}
-.side{display:flex;flex-direction:column;gap:16px;min-width:0}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;min-width:0}
-.card h3{margin:0 0 8px;font-size:14px;color:var(--muted);font-weight:600;display:flex;justify-content:space-between}
-.pantry div{display:flex;justify-content:space-between;font-size:14px;padding:3px 0}.soon{color:var(--warn)}
-.rpc{font:12px/1.4 ui-monospace,Menlo,monospace;max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:#b9c0d0}
-.rpc .out{color:#8fd3ff}.rpc .in{color:#a8e6a3}
-.small{font-size:12px;color:var(--muted)}button.link{background:none;border:0;color:var(--accent);cursor:pointer;font-size:12px;padding:0}
-footer{padding:10px 20px 24px;color:var(--muted);font-size:12px;max-width:1500px;margin:0 auto}
+:root{--bg:#120f0d;--bg2:#1a1512;--panel:#1f1a16;--panel2:#27211c;--line:#352d26;--fg:#f6efe7;--muted:#a8998a;--accent:#ff8a3d;--accent2:#ffb36b;--ok:#4cc38a;--warn:#f5b840;--bad:#ff6b5e;
+  --ada:#ff8a3d;--ben:#5aa9ff;--leo:#b884ff;--mia:#ff6fae}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:radial-gradient(1200px 600px at 15% -10%,#2a1c12 0%,transparent 60%),radial-gradient(900px 500px at 100% 0%,#1d1a26 0%,transparent 55%),var(--bg);color:var(--fg);font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;min-height:100vh}
+a{color:var(--accent2)}
+.wrap{max-width:1320px;margin:0 auto;padding:0 20px}
+
+/* header */
+header{display:flex;align-items:center;gap:14px;padding:18px 0 6px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(145deg,#ff9a4d,#e2531a);display:grid;place-items:center;font-size:22px;box-shadow:0 6px 20px #ff6a2a40}
+header h1{font-size:20px;margin:0;letter-spacing:-.01em}
+header .tag{color:var(--muted);font-size:13.5px}
+.pillbar{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.pill{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 10px;background:#ffffff06;white-space:nowrap}
+.pill b{color:var(--fg);font-weight:600}
+
+/* stage: device + phone */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:28px;align-items:start;padding:18px 0 8px}
+@media (max-width:1020px){.stage{grid-template-columns:1fr}.phonecol{justify-self:center}}
+
+.device{background:linear-gradient(180deg,#2b241f,#1b1613);border-radius:34px;padding:14px;box-shadow:0 30px 80px #0009,inset 0 1px 0 #ffffff14;border:1px solid #3a3029}
+.screen{background:#0e0c0b;border-radius:24px;display:flex;flex-direction:column;height:640px;overflow:hidden;position:relative;border:1px solid #2a231e}
+.status{display:flex;align-items:center;gap:10px;padding:14px 18px 10px;border-bottom:1px solid #221c18}
+.status .t{font-weight:700;font-size:15px}.status .d{color:var(--muted);font-size:13px}
+.status .sim{margin-left:auto;font-size:11px;color:var(--muted);border:1px solid #2f2721;border-radius:999px;padding:3px 9px}
+.feed{flex:1;overflow:auto;padding:16px 18px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
+.hint{margin:auto;text-align:center;color:var(--muted);max-width:420px}
+.hint .big{font-size:40px;margin-bottom:6px}
+.hint .try{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.hint button{background:#1d1814;border:1px solid #30281f;color:var(--fg);border-radius:12px;padding:10px 12px;cursor:pointer;font-size:14px;text-align:left}
+.hint button:hover{border-color:var(--accent)}
+.hint button span{color:var(--muted);font-size:12px;display:block}
+
+.row{display:flex;gap:10px;align-items:flex-end;max-width:88%}
+.row.u{align-self:flex-end;flex-direction:row-reverse}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800;color:#141010;flex:0 0 30px}
+.av.hearth{background:linear-gradient(145deg,#ff9a4d,#e2531a);color:#fff;font-size:15px}
+.bub{padding:10px 14px;border-radius:18px;font-size:15.5px;line-height:1.4}
+.row.u .bub{background:#2a2420;border-bottom-right-radius:6px}
+.row.a .bub{background:linear-gradient(180deg,#3a2414,#2c1c11);border:1px solid #4a2e18;border-bottom-left-radius:6px}
+.bub .by{font-size:11.5px;color:var(--muted);margin-bottom:2px;font-weight:600}
+.tools{display:flex;flex-wrap:wrap;gap:6px;margin-left:40px}
+.tl{font:12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;background:#17130f;border:1px solid #2b241d;color:#cbbfb2;border-radius:999px;padding:6px 10px;display:flex;gap:6px;align-items:center}
+.tl .ms{color:var(--muted)}
+.badge{font:700 10.5px/1 -apple-system,system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:4px 7px}
+.badge.held{background:#3d2d0a;color:var(--warn)}.badge.ready{background:#0f3324;color:var(--ok)}.badge.err{background:#3a1512;color:var(--bad)}
+.appwrap{margin-left:40px;max-width:calc(100% - 40px);width:100%}
+iframe.app{width:100%;border:0;border-radius:16px;background:transparent;min-height:250px;display:block;color-scheme:normal}
+.toast{align-self:center;display:flex;gap:10px;align-items:center;background:#2d2206;border:1px solid #5a4410;color:#ffd78a;border-radius:14px;padding:10px 14px;font-size:14px;animation:pop .35s ease}
+.toast.ok{background:#0f2b1f;border-color:#1f5a3f;color:#9be3c1}
+@keyframes pop{from{transform:translateY(6px) scale(.97);opacity:0}to{transform:none;opacity:1}}
+.typing{display:flex;gap:4px;padding:12px 14px}.typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:b 1s infinite}.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,80%,100%{opacity:.3;transform:none}40%{opacity:1;transform:translateY(-3px)}}
+
+.who{display:flex;gap:8px;align-items:center;padding:12px 18px 0;flex-wrap:wrap}
+.who .lbl{font-size:12px;color:var(--muted);margin-right:2px}
+.chip{display:flex;align-items:center;gap:8px;border:1px solid #2f2721;background:#17130f;color:var(--fg);border-radius:999px;padding:4px 12px 4px 4px;cursor:pointer;font-size:13.5px;transition:.15s}
+.chip .av{width:24px;height:24px;flex-basis:24px;font-size:11px}
+.chip small{color:var(--muted)}
+.chip.on{border-color:var(--c);box-shadow:0 0 0 1px var(--c) inset;background:#221b16}
+.bar{display:flex;gap:8px;padding:12px 18px 16px}
+.bar input{flex:1;background:#17130f;border:1px solid #2f2721;color:var(--fg);border-radius:14px;padding:12px 14px;font-size:15px;outline:none}
+.bar input:focus{border-color:var(--accent)}
+.bar button{border:0;border-radius:14px;padding:0 16px;font-weight:700;cursor:pointer;font-size:14px}
+#mic{background:#241d18;color:var(--fg);border:1px solid #2f2721}#mic.live{background:var(--bad);color:#fff}
+#send{background:var(--accent);color:#1a0d04}
+.opts{display:flex;justify-content:space-between;align-items:center;padding:0 22px;margin-top:8px;color:var(--muted);font-size:12.5px}
+.opts label{display:flex;gap:6px;align-items:center;cursor:pointer}
+button.link{background:none;border:0;color:var(--accent2);cursor:pointer;font-size:12.5px;padding:0}
+
+/* phone */
+.phonecol{display:flex;flex-direction:column;align-items:center;gap:10px}
+.phonecap{font-size:12.5px;color:var(--muted);text-align:center}
+.phone{width:340px;height:640px;background:#0b0a09;border-radius:46px;padding:12px;box-shadow:0 30px 80px #0009,inset 0 0 0 2px #2e2722;position:relative}
+.phone:before{content:"";position:absolute;top:20px;left:50%;transform:translateX(-50%);width:96px;height:26px;background:#000;border-radius:20px;z-index:2}
+.phone iframe{width:100%;height:100%;border:0;border-radius:36px;background:#f3efe9;display:block}
+.phone.ping{animation:ping .9s ease}
+@keyframes ping{0%{box-shadow:0 30px 80px #0009,inset 0 0 0 2px #2e2722,0 0 0 0 #f5b84088}60%{box-shadow:0 30px 80px #0009,inset 0 0 0 2px #f5b840,0 0 0 18px #f5b84000}100%{box-shadow:0 30px 80px #0009,inset 0 0 0 2px #2e2722}}
+
+/* household panels */
+.house{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:18px 0;align-items:start}
+#pantry{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+@media (max-width:1020px){.house{grid-template-columns:1fr}}
+.card{background:#1b1613cc;border:1px solid var(--line);border-radius:20px;padding:16px;min-width:0;backdrop-filter:blur(6px)}
+.card h3{margin:0 0 10px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.items{display:flex;flex-direction:column;gap:6px}
+.it{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px;padding:7px 10px;background:#ffffff05;border-radius:10px}
+.it .q{color:var(--muted);font-size:12.5px}
+.exp{white-space:nowrap;font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 8px;background:#ffffff0a;color:var(--muted)}
+.exp.soon{background:#3d2d0a;color:var(--warn)}.exp.gone{background:#3a1512;color:var(--bad)}
+.note{font-size:13px;color:#e8d9c6;background:#2a1e12;border:1px solid #3d2a17;border-radius:10px;padding:8px 10px;margin-top:10px}
+.empty{color:var(--muted);font-size:13.5px;padding:6px 2px}
+details.insp summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details.insp summary::-webkit-details-marker{display:none}
+.pv{font:700 11.5px/1 ui-monospace,Menlo,monospace;color:#9be3c1;background:#0f2b1f;border-radius:999px;padding:5px 9px;text-transform:none;letter-spacing:0}
+.rpc{font:11.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:#cbbfb2;margin-top:10px}
+.rpc div{padding:5px 0;border-bottom:1px dashed #2b241d}.rpc .out{color:#8fd3ff}.rpc .in{color:#a8e6a3}
+.lead{color:var(--muted);font-size:13px;margin:0}
+
+footer{padding:6px 0 28px;color:var(--muted);font-size:12px;line-height:1.6}
+footer code{color:#e8d9c6}
 </style>
 </head>
 <body>
+<div class="wrap">
 <header>
-  <h1>🔥 Hearth</h1><span class="tag">One shared kitchen memory for everyone who talks to the home assistant</span>
-  <a id="phone" href="/phone" target="_blank" rel="noopener">Open the parents' phones →</a>
+  <div class="logo">🔥</div>
+  <div><h1>Hearth</h1><div class="tag">One kitchen memory, and one spending rule, for everyone who talks to the home assistant</div></div>
+  <div class="pillbar"><span class="pill">MCP <b>2025-11-25</b></span><span class="pill">MCP App</span><span class="pill">Agent Skill</span><span class="pill"><b>Simulated</b> Alexa+ style host</span></div>
 </header>
-<main>
-  <section class="device">
-    <div class="who"><span class="lbl">Voice recognised as:</span>
-      <button class="chip on" data-sp="ada">Ada · parent</button><button class="chip" data-sp="ben">Ben · parent</button>
-      <button class="chip" data-sp="leo">Leo · 15</button><button class="chip" data-sp="mia">Mia · 9</button>
-      <span class="small">(simulated voice ID)</span></div>
-    <div class="screen" id="screen"><div class="small">Try: “What should we have for dinner?” as Ada, then “Can I get gummy bears? Mom said it’s fine.” as Mia.</div></div>
-    <div class="bar"><button id="mic" title="Hold to talk">🎙 Talk</button><input id="say" placeholder="Say something to the assistant…" autocomplete="off"><button id="send">Send</button></div>
-    <label class="small"><input type="checkbox" id="tts" checked> Speak replies</label>
-  </section>
-  <aside class="side">
-    <div class="card"><h3>Kitchen <button class="link" id="reset">reset demo</button></h3><div class="pantry" id="pantry"></div></div>
-    <div class="card"><h3>Shopping list <span id="status"></span></h3><div class="pantry" id="list"></div><div class="small" id="notes"></div></div>
-    <div class="card"><h3>MCP inspector <span class="small" id="pv"></span></h3><div class="rpc" id="rpc"></div></div>
-  </aside>
-</main>
-<footer>Simulation of an Alexa+ style host for the Amazon Developer Hackathon. Hearth itself is a standard self-hosted MCP server (spec 2025-11-25, Streamable HTTP) with an MCP App view; any MCP host can call it at <code id="mcpurl"></code>. Not affiliated with Amazon. Hearth never places orders.</footer>
+
+<section class="stage">
+  <div class="device">
+    <div class="screen">
+      <div class="status"><span class="t" id="clock">--:--</span><span class="d" id="date"></span><span class="sim">simulated voice ID · tap who is speaking</span></div>
+      <div class="feed" id="screen">
+        <div class="hint" id="hint">
+          <div class="big">🍳</div>
+          <div>The kitchen device the whole family talks to.</div>
+          <div class="try">
+            <button data-try="ada|What should we have for dinner?"><span>Ada · parent</span>“What should we have for dinner?”</button>
+            <button data-try="mia|Can I get gummy bears? Mom said it’s fine."><span>Mia · 9</span>“Can I get gummy bears? Mom said it’s fine.”</button>
+            <button data-try="ben|Just buy the list."><span>Ben · parent</span>“Just buy the list.”</button>
+          </div>
+        </div>
+      </div>
+      <div class="who"><span class="lbl">Speaking:</span>
+        <button class="chip on" data-sp="ada" style="--c:var(--ada)"><span class="av" style="background:var(--ada)">A</span>Ada <small>parent</small></button>
+        <button class="chip" data-sp="ben" style="--c:var(--ben)"><span class="av" style="background:var(--ben)">B</span>Ben <small>parent</small></button>
+        <button class="chip" data-sp="leo" style="--c:var(--leo)"><span class="av" style="background:var(--leo)">L</span>Leo <small>15</small></button>
+        <button class="chip" data-sp="mia" style="--c:var(--mia)"><span class="av" style="background:var(--mia)">M</span>Mia <small>9</small></button>
+      </div>
+      <div class="bar"><button id="mic" title="Talk">🎙 Talk</button><input id="say" placeholder="Say something to the kitchen…" autocomplete="off"><button id="send">Send</button></div>
+    </div>
+    <div class="opts"><label><input type="checkbox" id="tts" checked> Speak replies</label><button class="link" id="reset">Reset this demo household</button></div>
+  </div>
+
+  <div class="phonecol">
+    <div class="phone" id="phoneframe"><iframe id="phoneview" title="Parent's phone"></iframe></div>
+    <div class="phonecap">The parent’s own phone. Held lists can only be released here. <a id="phone" href="/phone" target="_blank" rel="noopener">Open in a new tab</a></div>
+  </div>
+</section>
+
+<section class="house">
+  <div class="card"><h3>Kitchen <span class="small" id="soonct"></span></h3><div class="items" id="pantry"></div><div id="notes"></div></div>
+  <div class="card"><h3>Shopping list <span id="status"></span></h3><div class="items" id="list"></div><p class="lead" id="listnote"></p></div>
+  <div class="card"><details class="insp" id="insp"><summary><h3 style="margin:0">MCP inspector</h3><span class="pv" id="pv">no session yet</span></summary>
+    <p class="lead" style="margin-top:10px">Every JSON-RPC message between the host and the Hearth MCP server in the last turn.</p><div class="rpc" id="rpc"></div></details></div>
+</section>
+
+<footer>Simulation of an Alexa+ style host, built for the Amazon Developer Hackathon. Hearth itself is a standard self-hosted MCP server (spec 2025-11-25, Streamable HTTP) with an MCP App view; any MCP client can call it at <code id="mcpurl"></code>. Hearth never places orders. Not affiliated with or endorsed by Amazon. <a href="https://github.com/tsang326/hearth">Source on GitHub</a></footer>
+</div>
+
 <script>
 const $ = (id) => document.getElementById(id)
 const NAMES = { ada: 'Ada', ben: 'Ben', leo: 'Leo', mia: 'Mia' }
 let speaker = 'ada'
 const history = []
 // Each browser gets its own household, so one visitor's test never shows up in another's demo
-let H = ''
-try { H = localStorage.getItem('hearth-h') || '' } catch {}
+let H = new URLSearchParams(location.search).get('h') || ''
+try { H = H || localStorage.getItem('hearth-h') || '' } catch {}
 if (!/^[a-z0-9-]{1,40}$/.test(H)) { H = 'v-' + Math.random().toString(36).slice(2, 12); try { localStorage.setItem('hearth-h', H) } catch {} }
 $('phone').href = '/phone?h=' + H
+$('phoneview').src = '/phone?embed=1&h=' + H
 $('mcpurl').textContent = location.origin + '/mcp'
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const av = (id) => `<span class="av" style="background:var(--${id})">${NAMES[id][0]}</span>`
 
-document.querySelectorAll('.chip').forEach((c) => c.onclick = () => {
-  document.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === c)); speaker = c.dataset.sp
-})
+function tick() {
+  const d = new Date()
+  $('clock').textContent = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  $('date').textContent = d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })
+}
+tick(); setInterval(tick, 15000)
 
-function add(html, cls) { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; $('screen').appendChild(d); $('screen').scrollTop = 1e9; return d }
+function pick(sp) {
+  speaker = sp
+  document.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x.dataset.sp === sp))
+}
+document.querySelectorAll('.chip').forEach((c) => c.onclick = () => pick(c.dataset.sp))
+document.querySelectorAll('[data-try]').forEach((b) => b.onclick = () => { const [sp, t] = b.dataset.try.split('|'); pick(sp); send(t) })
+
+function add(html, cls) {
+  $('hint')?.remove()
+  const d = document.createElement('div'); d.className = cls; d.innerHTML = html
+  $('screen').appendChild(d); $('screen').scrollTop = 1e9; return d
+}
 
 function showRpc(rpc) {
   const v = rpc.find((m) => m.dir === '<' && m.body?.result?.protocolVersion)
   if (v) $('pv').textContent = 'protocolVersion ' + v.body.result.protocolVersion
-  $('rpc').innerHTML = rpc.map((m) => `<div class="${m.dir === '>' ? 'out' : 'in'}">${m.dir} ${esc(JSON.stringify(m.body).slice(0, 600))}</div>`).join('')
+  $('rpc').innerHTML = rpc.map((m) => `<div class="${m.dir === '>' ? 'out' : 'in'}">${m.dir === '>' ? '→' : '←'} ${esc(JSON.stringify(m.body).slice(0, 600))}</div>`).join('')
 }
 
+let lastPending = 0
 async function refresh() {
   const s = await (await fetch('/api/state?h=' + H)).json()
   const today = new Date().toISOString().slice(0, 10)
   const left = (e) => e ? Math.round((Date.parse(e) - Date.parse(today)) / 864e5) : null
-  $('pantry').innerHTML = s.pantry.map((p) => { const d = left(p.expires); return `<div><span>${esc(p.name)} <span class="small">${p.qty} ${esc(p.unit)}</span></span><span class="${d !== null && d <= 3 ? 'soon' : 'small'}">${d === null ? '' : d <= 0 ? 'today' : d + 'd left'}</span></div>` }).join('')
-  $('list').innerHTML = s.cart.length ? s.cart.map((l) => `<div><span>${l.qty} × ${esc(l.item)}</span><span class="small">${NAMES[l.addedBy] ?? l.addedBy}</span></div>`).join('') : '<div class="small">Empty</div>'
-  $('status').innerHTML = s.cartStatus === 'held_for_approval' ? '<span class="held">held for a parent</span>' : s.cartStatus === 'ready_for_checkout' ? '<span class="ready">ready for checkout</span>' : s.cartStatus === 'declined' ? '<span class="held">declined</span>' : ''
-  $('notes').textContent = s.notes.map((n) => n.text).join(' · ')
+  const soon = s.pantry.filter((p) => { const d = left(p.expires); return d !== null && d <= 3 }).length
+  $('soonct').textContent = soon ? soon + ' going off soon' : ''
+  $('pantry').innerHTML = s.pantry.map((p) => {
+    const d = left(p.expires)
+    const tag = d === null ? '' : d < 0 ? '<span class="exp gone">past date</span>' : d === 0 ? '<span class="exp soon">today</span>' : `<span class="exp ${d <= 3 ? 'soon' : ''}">${d}d left</span>`
+    return `<div class="it"><span>${esc(p.name)} <span class="q">${p.qty} ${esc(p.unit)}</span></span>${tag}</div>`
+  }).join('') || '<div class="empty">Nothing in the kitchen</div>'
+  $('notes').innerHTML = s.notes.map((n) => `<div class="note">📝 ${esc(n.text)}</div>`).join('')
+  $('list').innerHTML = s.cart.length ? s.cart.map((l) => `<div class="it"><span>${l.qty} × ${esc(l.item)}</span><span class="q">added by ${esc(NAMES[l.addedBy] ?? l.addedBy)}</span></div>`).join('') : '<div class="empty">The list is empty</div>'
+  const st = { held_for_approval: ['held', 'held for a parent'], ready_for_checkout: ['ready', 'ready for checkout'], declined: ['err', 'declined'] }[s.cartStatus]
+  $('status').innerHTML = st ? `<span class="badge ${st[0]}">${st[1]}</span>` : ''
+  $('listnote').textContent = s.cartStatus === 'held_for_approval' ? 'Frozen until a parent decides on their phone.' : s.cartStatus === 'ready_for_checkout' ? 'Ready to hand to a grocery service. Hearth never places orders itself.' : ''
+  if (s.pending > lastPending) { $('phoneframe').classList.remove('ping'); void $('phoneframe').offsetWidth; $('phoneframe').classList.add('ping') }
+  lastPending = s.pending
 }
 
 // ---- MCP App host bridge (SEP-1865 over postMessage) --------------------------------
@@ -99,7 +230,7 @@ async function mountApp(ev) {
   if (!html) return
   const f = document.createElement('iframe')
   f.className = 'app'; f.setAttribute('sandbox', 'allow-scripts'); f.srcdoc = html
-  const wrap = add('', 'msg a'); wrap.style.maxWidth = '100%'; wrap.style.width = '100%'; wrap.appendChild(f)
+  const wrap = add('', 'appwrap'); wrap.appendChild(f)
   views.set(f, { ev, ready: false })
 }
 window.addEventListener('message', async (e) => {
@@ -121,27 +252,45 @@ window.addEventListener('message', async (e) => {
 })
 
 // ---- conversation -------------------------------------------------------------------
+let busy = false
 async function send(text) {
-  text = text.trim(); if (!text) return
-  $('say').value = ''
-  add(`<div class="by">${NAMES[speaker]}</div>${esc(text)}`, 'msg u')
-  const thinking = add('…', 'tool')
-  const r = await (await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ speaker, utterance: text, history, h: H }) })).json()
-  thinking.remove()
-  if (r.error) { add(esc(r.error), 'tool'); return }
-  for (const ev of r.events) {
-    const out = ev.structured?.outcome
-    add(`<b>${esc(ev.name)}</b> ${ev.ms} ms${out ? ` · <span class="${out === 'held_for_approval' ? 'held' : 'ready'}">${esc(out)}</span>` : ''}`, 'tool')
-    if (ev.uiUri && !ev.isError) await mountApp(ev)
-  }
-  add(`<div class="by">Assistant</div>${esc(r.reply)}`, 'msg a')
-  history.push({ role: 'user', text, speaker }, { role: 'assistant', text: r.reply })
-  showRpc(r.rpc); refresh()
-  if ($('tts').checked && 'speechSynthesis' in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(r.reply); u.rate = 1.05; speechSynthesis.speak(u) }
+  text = text.trim(); if (!text || busy) return
+  busy = true; $('say').value = ''
+  add(`${av(speaker)}<div class="bub"><div class="by">${NAMES[speaker]}</div>${esc(text)}</div>`, 'row u')
+  const thinking = add('<span class="av hearth">🔥</span><div class="bub typing"><i></i><i></i><i></i></div>', 'row a')
+  try {
+    const r = await (await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ speaker, utterance: text, history, h: H }) })).json()
+    thinking.remove()
+    if (r.error) { add(esc(r.error), 'toast'); return }
+    if (r.events.length) {
+      const pills = r.events.map((ev) => {
+        const out = ev.structured?.outcome
+        const badge = ev.isError ? '<span class="badge err">refused</span>' : out === 'held_for_approval' ? '<span class="badge held">held</span>' : out === 'ready_for_checkout' ? '<span class="badge ready">ready</span>' : ''
+        return `<span class="tl">${esc(ev.name)} <span class="ms">${ev.ms} ms</span>${badge}</span>`
+      }).join('')
+      add(pills, 'tools')
+    }
+    for (const ev of r.events) if (ev.uiUri && !ev.isError) await mountApp(ev)
+    add(`<span class="av hearth">🔥</span><div class="bub"><div class="by">Hearth</div>${esc(r.reply)}</div>`, 'row a')
+    const held = r.events.find((ev) => ev.name === 'checkout' && ev.structured?.outcome === 'held_for_approval')
+    if (held) {
+      const ap = held.structured.approval
+      add(held.structured.reason?.startsWith('already waiting') ? `🔒 Still held. Only ${esc(NAMES[ap?.approver] ?? 'a parent')}’s phone can release it.` : `📱 Sent to ${esc(NAMES[ap?.approver] ?? 'a parent')}’s phone · $${ap?.total ?? ''}`, 'toast')
+    }
+    if (r.events.find((ev) => ev.name === 'checkout' && ev.structured?.outcome === 'ready_for_checkout')) add('✅ Ready for checkout. Hearth never places orders itself.', 'toast ok')
+    history.push({ role: 'user', text, speaker }, { role: 'assistant', text: r.reply })
+    showRpc(r.rpc); refresh()
+    if ($('tts').checked && 'speechSynthesis' in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(r.reply); u.rate = 1.05; speechSynthesis.speak(u) }
+  } catch (e) {
+    thinking.remove(); add('Something went wrong. Try again.', 'toast')
+  } finally { busy = false }
 }
 $('send').onclick = () => send($('say').value)
 $('say').onkeydown = (e) => { if (e.key === 'Enter') send($('say').value) }
-$('reset').onclick = async () => { await fetch('/api/reset?h=' + H, { method: 'POST' }); history.length = 0; $('screen').innerHTML = ''; refresh() }
+$('reset').onclick = async () => {
+  await fetch('/api/reset?h=' + H, { method: 'POST' }); history.length = 0
+  $('screen').innerHTML = ''; add('Demo household restored: fresh food dates, empty list.', 'toast ok'); refresh(); $('phoneview').src = $('phoneview').src
+}
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition
 if (!SR) $('mic').style.display = 'none'
@@ -151,7 +300,7 @@ else {
   rec.onend = () => $('mic').classList.remove('live')
   $('mic').onclick = () => { $('mic').classList.add('live'); rec.start() }
 }
-refresh(); setInterval(refresh, 4000)
+refresh(); setInterval(refresh, 3000)
 </script>
 </body>
 </html>
