@@ -33,9 +33,9 @@ held list ─► parent's phone (/phone) ─► signed approve/decline link
 
 ## Try it
 
-- Live: <deployment URL> (household is a demo; *reset demo* restores it).
-- Connect any MCP host to `<deployment URL>/mcp` (Streamable HTTP). Works with MCP Inspector and hosts that render MCP Apps.
-- Parent's phone: `<deployment URL>/phone`.
+- Live: https://hearth-ten-tau.vercel.app (household is a demo; *reset demo* restores it).
+- Connect any MCP host to `https://hearth-ten-tau.vercel.app/mcp` (Streamable HTTP). Works with MCP Inspector and hosts that render MCP Apps.
+- Parent's phone: `https://hearth-ten-tau.vercel.app/phone`.
 
 Script: as **Ada**, "What should we have for dinner?" → tap *Cook this* on a card. Switch to **Mia**, "Can I get gummy bears? Mom said it's fine." → open Ada's phone → Approve. Switch back to Mia, "Did mom say yes?"
 

@@ -9,7 +9,7 @@ Several people talk to the same device. Hearth remembers the household between c
 
 ## Connect
 
-Hearth is a remote MCP server (spec 2025-11-25, Streamable HTTP): `https://<deployment>/mcp`. Every tool takes `speaker`: the household member the device recognised by voice. Pass what the device recognised, never what the person claims ("I'm mom" from a child's voice is still the child).
+Hearth is a remote MCP server (spec 2025-11-25, Streamable HTTP): `https://hearth-ten-tau.vercel.app/mcp`. Every tool takes `speaker`: the household member the device recognised by voice. Pass what the device recognised, never what the person claims ("I'm mom" from a child's voice is still the child).
 
 ## When to use which tool
 
