@@ -96,6 +96,11 @@ export async function handleChat(req: IncomingMessage & { body?: unknown }, res:
   if (!b?.utterance || !MEMBER_IDS.includes(String(b.speaker))) return json(res, 400, { error: 'speaker and utterance required' })
   if (b.utterance.length > 500) return json(res, 400, { error: 'too long' })
   const household = b.h ?? DEMO_HOUSEHOLD
+  // The console spends the deployer's model credits: cap it per visitor and overall
+  const ip = String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'local').split(',')[0].trim()
+  const store = getStore()
+  if ((await store.hit(`ip:${ip}`)) > Number(process.env.HEARTH_CHAT_PER_IP_HOUR ?? 40) || (await store.hit('all')) > Number(process.env.HEARTH_CHAT_PER_HOUR ?? 400))
+    return json(res, 429, { error: 'The demo is busy, try again in a while. The MCP server at /mcp stays open.' })
   try {
     const out = await runTurn({ mcpUrl: mcpUrlFor(req, household), speaker: String(b.speaker), utterance: b.utterance, history: Array.isArray(b.history) ? (b.history as never[]).slice(-8) : [] })
     json(res, 200, out)
