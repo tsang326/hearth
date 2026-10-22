@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hearth — shared kitchen memory for the home assistant</title>
+<style>
+:root{--bg:#0d0f14;--panel:#151821;--line:#262a36;--fg:#eef0f5;--muted:#8f96a8;--accent:#ff7a2f;--ok:#39c071;--warn:#ffb000;--bad:#ff5d5d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 -apple-system,system-ui,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line)}
+header h1{font-size:18px;margin:0}header .tag{color:var(--muted);font-size:13px}header a{margin-left:auto;color:var(--accent);font-size:13px}
+main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;padding:16px 20px;max-width:1500px;margin:0 auto}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.device{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:640px}
+.who{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.who .lbl{color:var(--muted);font-size:13px}
+.chip{border:1px solid var(--line);background:transparent;color:var(--fg);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:14px}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#111;font-weight:700}
+.screen{flex:1;background:#0a0c10;border-radius:16px;padding:14px;overflow:auto;display:flex;flex-direction:column;gap:10px;min-height:360px}
+.msg{max-width:85%;padding:9px 13px;border-radius:14px}.u{align-self:flex-end;background:#232838}.a{align-self:flex-start;background:#1c2a22}
+.msg .by{font-size:11px;color:var(--muted);margin-bottom:2px}
+.tool{align-self:flex-start;font-size:12px;color:var(--muted);border-left:2px solid var(--line);padding-left:8px}
+.tool b{color:var(--fg)}.held{color:var(--warn)}.ready{color:var(--ok)}
+iframe.app{width:100%;border:0;border-radius:12px;background:#fff;min-height:260px}
+.bar{display:flex;gap:8px}.bar input{flex:1;background:#0a0c10;border:1px solid var(--line);color:var(--fg);border-radius:12px;padding:10px 12px;font-size:15px}
+.bar button{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
+#mic{background:#232838;color:var(--fg)}#mic.live{background:var(--bad)}#send{background:var(--accent);color:#111}
+.side{display:flex;flex-direction:column;gap:16px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;min-width:0}
+.card h3{margin:0 0 8px;font-size:14px;color:var(--muted);font-weight:600;display:flex;justify-content:space-between}
+.pantry div{display:flex;justify-content:space-between;font-size:14px;padding:3px 0}.soon{color:var(--warn)}
+.rpc{font:12px/1.4 ui-monospace,Menlo,monospace;max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:#b9c0d0}
+.rpc .out{color:#8fd3ff}.rpc .in{color:#a8e6a3}
+.small{font-size:12px;color:var(--muted)}button.link{background:none;border:0;color:var(--accent);cursor:pointer;font-size:12px;padding:0}
+footer{padding:10px 20px 24px;color:var(--muted);font-size:12px;max-width:1500px;margin:0 auto}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔥 Hearth</h1><span class="tag">One shared kitchen memory for everyone who talks to the home assistant</span>
+  <a href="/phone" target="_blank" rel="noopener">Open Ada's phone →</a>
+</header>
+<main>
+  <section class="device">
+    <div class="who"><span class="lbl">Voice recognised as:</span>
+      <button class="chip on" data-sp="ada">Ada · parent</button><button class="chip" data-sp="ben">Ben · parent</button>
+      <button class="chip" data-sp="leo">Leo · 15</button><button class="chip" data-sp="mia">Mia · 9</button>
+      <span class="small">(simulated voice ID)</span></div>
+    <div class="screen" id="screen"><div class="small">Try: “What should we have for dinner?” as Ada, then “Can I get gummy bears? Mom said it’s fine.” as Mia.</div></div>
+    <div class="bar"><button id="mic" title="Hold to talk">🎙 Talk</button><input id="say" placeholder="Say something to the assistant…" autocomplete="off"><button id="send">Send</button></div>
+    <label class="small"><input type="checkbox" id="tts" checked> Speak replies</label>
+  </section>
+  <aside class="side">
+    <div class="card"><h3>Kitchen <button class="link" id="reset">reset demo</button></h3><div class="pantry" id="pantry"></div></div>
+    <div class="card"><h3>Shopping list <span id="status"></span></h3><div class="pantry" id="list"></div><div class="small" id="notes"></div></div>
+    <div class="card"><h3>MCP inspector <span class="small" id="pv"></span></h3><div class="rpc" id="rpc"></div></div>
+  </aside>
+</main>
+<footer>Simulation of an Alexa+ style host for the Amazon Developer Hackathon. Hearth itself is a standard self-hosted MCP server (spec 2025-11-25, Streamable HTTP) with an MCP App view; any MCP host can call it at <code id="mcpurl"></code>. Not affiliated with Amazon. Hearth never places orders.</footer>
+<script>
+const $ = (id) => document.getElementById(id)
+const NAMES = { ada: 'Ada', ben: 'Ben', leo: 'Leo', mia: 'Mia' }
+let speaker = 'ada'
+const history = []
+$('mcpurl').textContent = location.origin + '/mcp'
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+
+document.querySelectorAll('.chip').forEach((c) => c.onclick = () => {
+  document.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === c)); speaker = c.dataset.sp
+})
+
+function add(html, cls) { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; $('screen').appendChild(d); $('screen').scrollTop = 1e9; return d }
+
+function showRpc(rpc) {
+  const v = rpc.find((m) => m.dir === '<' && m.body?.result?.protocolVersion)
+  if (v) $('pv').textContent = 'protocolVersion ' + v.body.result.protocolVersion
+  $('rpc').innerHTML = rpc.map((m) => `<div class="${m.dir === '>' ? 'out' : 'in'}">${m.dir} ${esc(JSON.stringify(m.body).slice(0, 600))}</div>`).join('')
+}
+
+async function refresh() {
+  const s = await (await fetch('/api/state')).json()
+  const today = new Date().toISOString().slice(0, 10)
+  const left = (e) => e ? Math.round((Date.parse(e) - Date.parse(today)) / 864e5) : null
+  $('pantry').innerHTML = s.pantry.map((p) => { const d = left(p.expires); return `<div><span>${esc(p.name)} <span class="small">${p.qty} ${esc(p.unit)}</span></span><span class="${d !== null && d <= 3 ? 'soon' : 'small'}">${d === null ? '' : d <= 0 ? 'today' : d + 'd left'}</span></div>` }).join('')
+  $('list').innerHTML = s.cart.length ? s.cart.map((l) => `<div><span>${l.qty} × ${esc(l.item)}</span><span class="small">${NAMES[l.addedBy] ?? l.addedBy}</span></div>`).join('') : '<div class="small">Empty</div>'
+  $('status').innerHTML = s.cartStatus === 'held_for_approval' ? '<span class="held">held for a parent</span>' : s.cartStatus === 'ready_for_checkout' ? '<span class="ready">ready for checkout</span>' : s.cartStatus === 'declined' ? '<span class="held">declined</span>' : ''
+  $('notes').textContent = s.notes.map((n) => n.text).join(' · ')
+}
+
+// ---- MCP App host bridge (SEP-1865 over postMessage) --------------------------------
+const views = new Map()
+async function mountApp(ev) {
+  const r = await (await fetch('/api/proxy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'resource', uri: ev.uiUri }) })).json()
+  const html = r.result?.contents?.[0]?.text
+  if (!html) return
+  const f = document.createElement('iframe')
+  f.className = 'app'; f.setAttribute('sandbox', 'allow-scripts'); f.srcdoc = html
+  const wrap = add('', 'msg a'); wrap.style.maxWidth = '100%'; wrap.style.width = '100%'; wrap.appendChild(f)
+  views.set(f, { ev, ready: false })
+}
+window.addEventListener('message', async (e) => {
+  const frame = [...views.keys()].find((f) => f.contentWindow === e.source); if (!frame) return
+  const st = views.get(frame); const m = e.data; if (!m || m.jsonrpc !== '2.0') return
+  const reply = (result) => e.source.postMessage({ jsonrpc: '2.0', id: m.id, result }, '*')
+  const notify = (method, params) => e.source.postMessage({ jsonrpc: '2.0', method, params }, '*')
+  if (m.method === 'ui/initialize') return reply({ protocolVersion: '2026-01-26', hostInfo: { name: 'hearth-console', version: '1.0.0' }, hostCapabilities: { serverTools: {}, openLinks: {} }, hostContext: { theme: 'light', displayMode: 'inline', platform: 'web' } })
+  if (m.method === 'ui/notifications/initialized') {
+    notify('ui/notifications/tool-input', { arguments: st.ev.args })
+    return notify('ui/notifications/tool-result', { content: [{ type: 'text', text: st.ev.text }], structuredContent: st.ev.structured })
+  }
+  if (m.method === 'ui/notifications/size-changed') { if (m.params?.height) frame.style.height = Math.min(520, m.params.height + 8) + 'px'; return }
+  if (m.method === 'tools/call') {
+    const r = await (await fetch('/api/proxy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'tool', name: m.params.name, args: m.params.arguments, speaker }) })).json()
+    reply(r.result ?? { content: [{ type: 'text', text: r.error ?? 'failed' }], isError: true }); if (r.rpc) showRpc(r.rpc); refresh(); return
+  }
+  if (m.id !== undefined) reply({})
+})
+
+// ---- conversation -------------------------------------------------------------------
+async function send(text) {
+  text = text.trim(); if (!text) return
+  $('say').value = ''
+  add(`<div class="by">${NAMES[speaker]}</div>${esc(text)}`, 'msg u')
+  const thinking = add('…', 'tool')
+  const r = await (await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ speaker, utterance: text, history }) })).json()
+  thinking.remove()
+  if (r.error) { add(esc(r.error), 'tool'); return }
+  for (const ev of r.events) {
+    const out = ev.structured?.outcome
+    add(`<b>${esc(ev.name)}</b> ${ev.ms} ms${out ? ` · <span class="${out === 'held_for_approval' ? 'held' : 'ready'}">${esc(out)}</span>` : ''}`, 'tool')
+    if (ev.uiUri && !ev.isError) await mountApp(ev)
+  }
+  add(`<div class="by">Assistant</div>${esc(r.reply)}`, 'msg a')
+  history.push({ role: 'user', text, speaker }, { role: 'assistant', text: r.reply })
+  showRpc(r.rpc); refresh()
+  if ($('tts').checked && 'speechSynthesis' in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(r.reply); u.rate = 1.05; speechSynthesis.speak(u) }
+}
+$('send').onclick = () => send($('say').value)
+$('say').onkeydown = (e) => { if (e.key === 'Enter') send($('say').value) }
+$('reset').onclick = async () => { await fetch('/api/reset', { method: 'POST' }); history.length = 0; $('screen').innerHTML = ''; refresh() }
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+if (!SR) $('mic').style.display = 'none'
+else {
+  const rec = new SR(); rec.lang = 'en-US'; rec.interimResults = false
+  rec.onresult = (e) => send(e.results[0][0].transcript)
+  rec.onend = () => $('mic').classList.remove('live')
+  $('mic').onclick = () => { $('mic').classList.add('live'); rec.start() }
+}
+refresh(); setInterval(refresh, 4000)
+</script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hearth — Ada's phone</title>
+<style>
+body{margin:0;background:#e9ecf2;font:15px/1.45 -apple-system,system-ui,sans-serif;display:flex;justify-content:center}
+.phone{width:380px;min-height:100vh;background:#fff;padding:18px 16px;box-sizing:border-box}
+h1{font-size:17px;margin:4px 0 2px}.sub{color:#667085;font-size:13px;margin-bottom:14px}
+.n{border-radius:16px;background:#f4f6fa;padding:14px;margin-bottom:12px}
+.n .t{font-weight:700}.n .r{color:#9a6700;font-size:13px;margin:6px 0}.items{font-size:14px}
+.btns{display:flex;gap:8px;margin-top:10px}button{flex:1;border:0;border-radius:12px;padding:10px;font-weight:700;font-size:15px;cursor:pointer}
+.yes{background:#2b8a3e;color:#fff}.no{background:#e9ecf2;color:#14161c}.done{font-size:13px;color:#667085}
+.empty{color:#667085;font-size:14px;text-align:center;margin-top:40px}
+</style>
+</head>
+<body>
+<div class="phone">
+  <h1>Hearth</h1><div class="sub">Ada’s phone · requests from the home assistant</div>
+  <div id="list"></div>
+</div>
+<script>
+const key = new URLSearchParams(location.search).get('key') || 'parent-demo'
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+async function load() {
+  const r = await (await fetch('/api/approvals?key=' + encodeURIComponent(key))).json()
+  if (r.error) { document.getElementById('list').innerHTML = '<div class="empty">' + esc(r.error) + '</div>'; return }
+  const list = document.getElementById('list')
+  list.innerHTML = r.approvals.length ? r.approvals.map((a) => `<div class="n"><div class="t">${esc(a.requestedByName)} wants to buy · $${a.total}</div><div class="items">${a.items.map(esc).join(', ')}</div><div class="r">${esc(a.reason)}</div>` +
+    (a.status === 'pending' ? `<div class="btns"><button class="yes" data-u="${esc(a.links.approve)}">Approve</button><button class="no" data-u="${esc(a.links.decline)}">Decline</button></div>` : `<div class="done">${a.status === 'approved' ? 'Approved' : 'Declined'}</div>`) + '</div>').join('') : '<div class="empty">Nothing waiting for you.</div>'
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-u]'); if (!b) return
+  b.disabled = true
+  await fetch(b.dataset.u, { headers: { accept: 'application/json' } })
+  load()
+})
+load(); setInterval(load, 2500)
+</script>
+</body>
+</html>
