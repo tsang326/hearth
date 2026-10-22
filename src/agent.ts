@@ -120,7 +120,7 @@ async function openaiTurn(system: string, messages: { role: string; content: str
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: FALLBACK_MODEL, messages: msgs, tools: fns, max_tokens: 400 }),
+      body: JSON.stringify({ model: FALLBACK_MODEL, messages: msgs, tools: fns, max_completion_tokens: FALLBACK_MODEL.startsWith('gpt-5') ? 4000 : 400 }),
     })
     if (!r.ok) throw new Error(`OpenAI ${r.status}: ${(await r.text()).slice(0, 200)}`)
     const m = (await r.json()).choices[0].message as ChatMsg
