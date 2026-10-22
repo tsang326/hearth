@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { mcpTools } from '@anthropic-ai/sdk/helpers/beta/mcp'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -22,12 +23,18 @@ const loadSkill = () => (skill ??= readFileSync(join(process.cwd(), 'skills/hear
 
 const MEMBERS: Record<string, string> = { ada: 'Ada (parent)', ben: 'Ben (parent)', leo: 'Leo (15)', mia: 'Mia (9)' }
 
+/** Marks the console's own calls to /mcp, which are rate-limited per visitor before they get there. */
+export const hostKey = () =>
+  createHash('sha256').update(`hearth-host:${process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.ANTHROPIC_API_KEY ?? 'local'}`).digest('hex')
+
 export async function connectHearth(mcpUrl: string, rpc: RpcEntry[]) {
   const t0 = Date.now()
   const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), {
     fetch: async (url, init) => {
       if (init?.body) rpc.push({ dir: '>', at: Date.now() - t0, body: JSON.parse(String(init.body)) })
-      const r = await fetch(url, init)
+      const headers = new Headers(init?.headers)
+      headers.set('x-hearth-host', hostKey())
+      const r = await fetch(url, { ...init, headers })
       // The client also opens a GET for server-sent events; the stateless server answers 405, which is expected and not logged
       if (!init?.body) return r
       const clone = r.clone()

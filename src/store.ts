@@ -7,6 +7,8 @@ export interface Store {
   /** Count one use of `key` in the current hour; returns the count so far. */
   hit(key: string): Promise<number>
   get(id: string): Promise<Household>
+  /** Like get, but never writes: a household nobody has used yet is shown as a fresh seed. */
+  peek(id: string): Promise<Household>
   put(h: Household): Promise<void>
   reset(id: string): Promise<Household>
 }
@@ -27,6 +29,7 @@ class MemoryStore implements Store {
     if (!this.m.has(id) || stale(this.m.get(id)!)) this.m.set(id, seedHousehold(id))
     return structuredClone(this.m.get(id)!)
   }
+  async peek(id: string) { const h = this.m.get(id); return h && !stale(h) ? structuredClone(h) : seedHousehold(id) }
   async put(h: Household) { this.m.set(h.id, structuredClone(h)) }
   async reset(id: string) { const h = seedHousehold(id); this.m.set(id, h); return structuredClone(h) }
 }
@@ -40,6 +43,10 @@ class RedisStore implements Store {
     const fresh = seedHousehold(id)
     await this.put(fresh)
     return fresh
+  }
+  async peek(id: string) {
+    const h = await this.r.get<Household>(key(id))
+    return h && !stale(h) ? h : seedHousehold(id)
   }
   async put(h: Household) {
     h.log = h.log.slice(-200)

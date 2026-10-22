@@ -65,6 +65,8 @@ State is in memory locally; set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST
 - The demo parent key is public so judges can try both sides; in the console anyone can open the parents' phones.
 - The approve link is a random secret token, not a cryptographic signature, and approving is a plain GET.
 - Allergy matching reads a fixed list of everyday words; it is a helper, not a medical tool.
+- Parents are trusted with items that have no price: their own limit is checked against priced items only.
+- A held list freezes its whole household until a parent decides. Use your own `?h=` when testing over `/mcp`, so you don't freeze the shared `demo` household for others.
 - Hearth has only been tested with its own simulated host, not with other MCP App hosts.
 
 See [FRICTION.md](FRICTION.md) for what got in the way.

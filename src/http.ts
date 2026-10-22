@@ -10,7 +10,7 @@ export const DEMO_HOUSEHOLD = 'demo'
 
 /** Household id from ?h= (the console gives each browser its own), else the shared demo. */
 const householdId = (raw: unknown) => {
-  const s = String(raw ?? '')
+  const s = String(raw ?? '').toLowerCase()
   return /^[a-z0-9-]{1,40}$/.test(s) ? s : DEMO_HOUSEHOLD
 }
 
@@ -45,7 +45,7 @@ export async function handleMcp(req: IncomingMessage & { body?: unknown }, res: 
   if (req.method !== 'POST') return json(res, 405, { jsonrpc: '2.0', error: { code: -32000, message: 'Use POST (stateless Streamable HTTP)' }, id: null })
   const url = new URL(req.url ?? '/', 'http://x')
   const household = householdId(url.searchParams.get('h'))
-  if ((await getStore().hit(`mcp:${clientIp(req)}`)) > Number(process.env.HEARTH_MCP_PER_IP_HOUR ?? 600))
+  if (req.headers['x-hearth-host'] !== hostKey() && (await getStore().hit(`mcp:${clientIp(req)}`)) > Number(process.env.HEARTH_MCP_PER_IP_HOUR ?? 600))
     return json(res, 429, { jsonrpc: '2.0', error: { code: -32000, message: 'Too many requests, try again later' }, id: null })
   const server = buildServer(household, baseUrl(req))
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })
@@ -96,7 +96,7 @@ export async function handleReset(req: IncomingMessage, res: ServerResponse) {
 }
 
 // ---- simulated Alexa+ console -------------------------------------------------------
-import { proxy, runTurn, type Turn } from './agent.js'
+import { hostKey, proxy, runTurn, type Turn } from './agent.js'
 
 const mcpUrlFor = (req: IncomingMessage, household: string) => `${process.env.HEARTH_MCP_URL ?? baseUrl(req) + '/mcp'}?h=${encodeURIComponent(household)}`
 const MEMBER_IDS = ['ada', 'ben', 'leo', 'mia']
@@ -126,6 +126,8 @@ export async function handleProxy(req: IncomingMessage & { body?: unknown }, res
   if (req.method !== 'POST') return json(res, 405, { error: 'POST' })
   const b = (await readBody(req)) as { kind: 'tool' | 'resource'; name?: string; args?: Record<string, unknown>; uri?: string; h?: string; speaker?: string }
   const household = householdId(b.h)
+  if ((await getStore().hit(`proxy:${clientIp(req)}`)) > Number(process.env.HEARTH_PROXY_PER_IP_HOUR ?? 300))
+    return json(res, 429, { error: 'Too many requests, try again later' })
   try {
     if (b.kind === 'resource') return json(res, 200, await proxy(mcpUrlFor(req, household), { kind: 'resource', uri: String(b.uri) }))
     // The console binds the speaker here too: a view cannot act as someone else.
@@ -140,6 +142,6 @@ export async function handleProxy(req: IncomingMessage & { body?: unknown }, res
 /** GET /api/state?h= — the console's side panel (kitchen, list, notes). Read-only. */
 export async function handleState(req: IncomingMessage, res: ServerResponse) {
   const url = new URL(req.url ?? '/', 'http://x')
-  const h = await getStore().get(householdId(url.searchParams.get('h')))
+  const h = await getStore().peek(householdId(url.searchParams.get('h')))
   json(res, 200, { name: h.name, pantry: h.pantry, notes: h.notes, cart: h.cart, cartStatus: h.cartStatus, pending: h.approvals.filter((a) => a.status === 'pending').length, log: h.log.slice(-12).reverse() })
 }
