@@ -3,6 +3,8 @@
 // signed approve/decline links is sent as well.
 import { member, type Approval, type Household } from './domain.js'
 
+export const escapeHtml = (s: unknown) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
+
 export function approvalLinks(a: Approval, baseUrl: string, householdId: string) {
   const q = (approve: boolean) => `${baseUrl}/api/decide?h=${encodeURIComponent(householdId)}&id=${a.id}&t=${a.token}&a=${approve ? 1 : 0}`
   return { approve: q(true), decline: q(false) }
@@ -21,7 +23,7 @@ export async function notifyApprover(h: Household, a: Approval, baseUrl: string)
       from: process.env.HEARTH_FROM_EMAIL ?? 'Hearth <onboarding@resend.dev>',
       to,
       subject: `${who} wants to buy: $${a.total}`,
-      html: `<p>${who} asked Hearth to buy:</p><ul>${a.lines.map((l) => `<li>${l.qty} × ${l.item}</li>`).join('')}</ul><p>Why it needs you: ${a.reason}.</p><p><a href="${links.approve}">Approve</a> · <a href="${links.decline}">Decline</a></p>`,
+      html: `<p>${escapeHtml(who)} asked Hearth to buy:</p><ul>${a.lines.map((l) => `<li>${l.qty} × ${escapeHtml(l.item)}</li>`).join('')}</ul><p>Why it needs you: ${escapeHtml(a.reason)}.</p><p><a href="${links.approve}">Approve</a> · <a href="${links.decline}">Decline</a></p>`,
     }),
   }).catch(() => undefined)
   return !!r?.ok

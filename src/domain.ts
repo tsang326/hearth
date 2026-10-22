@@ -60,6 +60,8 @@ export interface Household {
   cartStatus: CartStatus
   approvals: Approval[]
   cooked: { recipeId: string; by: string; at: string }[]
+  /** When this demo household was seeded: expiry dates are relative to it. */
+  seededAt?: string
   log: { at: string; by: string; event: string }[]
 }
 
@@ -112,6 +114,17 @@ export const CATALOG: Record<string, { price: number; category: string }> = {
   cheddar: { price: 4.49, category: 'dairy' }, milk: { price: 3.59, category: 'dairy' },
   'gummy bears': { price: 3.99, category: 'candy' }, 'chocolate bar': { price: 2.49, category: 'candy' }, 'energy drink': { price: 2.99, category: 'energy drinks' },
   'video game gift card': { price: 50, category: 'gift cards' },
+  beer: { price: 9.99, category: 'alcohol' }, wine: { price: 12.99, category: 'alcohol' },
+}
+
+/** Items Hearth has no price for: a non-parent can never buy one alone. */
+export const UNLISTED = 'not on the price list'
+
+/** Catalog entry for a spoken item name, tolerant of plurals ("gummy bear", "energy drinks"). */
+export function lookup(name: string): { name: string; price: number; category: string } | undefined {
+  const n = name.toLowerCase().trim().replace(/\s+/g, ' ')
+  for (const k of [n, n.replace(/(es|s)$/, ''), n.replace(/s$/, ''), `${n}s`, `${n}es`]) if (CATALOG[k]) return { name: k, ...CATALOG[k] }
+  return undefined
 }
 
 /** Categories that always need a parent, whoever asks and whatever the amount. */
@@ -150,6 +163,7 @@ export function seedHousehold(id: string, now = new Date()): Household {
     approvals: [],
     cooked: [],
     log: [],
+    seededAt: now.toISOString(),
   }
 }
 
@@ -162,11 +176,23 @@ export const member = (h: Household, id: string) => {
 export const daysLeft = (item: PantryItem, now = new Date()) =>
   item.expires ? Math.round((Date.parse(item.expires) - Date.parse(now.toISOString().slice(0, 10))) / day) : Infinity
 
-/** Allergens the household has told Hearth about, from free-text notes. */
+/** Words in a note that name each allergen recipes are tagged with. */
+const ALLERGEN_WORDS: Record<string, string[]> = {
+  peanut: ['peanut', 'peanuts', 'nut', 'nuts', 'tree nut', 'tree nuts'],
+  egg: ['egg', 'eggs'],
+  milk: ['milk', 'dairy', 'lactose', 'cheese', 'yogurt', 'yoghurt'],
+  wheat: ['wheat', 'gluten', 'celiac', 'coeliac'],
+  soy: ['soy', 'soya', 'soybean', 'soybeans'],
+  shellfish: ['shellfish', 'shrimp', 'prawn', 'prawns', 'crab', 'lobster'],
+  sesame: ['sesame'],
+}
+
+/** Allergens the household has told Hearth about: each note that mentions an allergy or intolerance. */
 export function householdAllergens(h: Household): string[] {
-  const all = ['peanut', 'egg', 'milk', 'wheat', 'soy', 'shellfish', 'sesame']
-  const text = h.notes.map((n) => n.text.toLowerCase()).join(' ')
-  return all.filter((a) => new RegExp(`\\b${a}s?\\b`).test(text) && /allerg/.test(text))
+  const notes = h.notes.map((n) => n.text.toLowerCase()).filter((t) => /allerg|intoleran|celiac|coeliac|can'?t (eat|have)/.test(t))
+  return Object.entries(ALLERGEN_WORDS)
+    .filter(([, words]) => notes.some((t) => words.some((w) => new RegExp(`\\b${w}\\b`).test(t))))
+    .map(([a]) => a)
 }
 
 export interface MealSuggestion {
@@ -195,12 +221,13 @@ export function suggestMeals(h: Household, opts: { maxMinutes?: number } = {}, n
     let score = 0
     for (const ing of r.ingredients) {
       const p = have.get(ing.name)
-      if (p && p.qty > 0) {
+      // Past its date counts as not in the kitchen: never plan a meal on spoiled food
+      if (p && p.qty > 0 && daysLeft(p, now) >= 0) {
         const d = daysLeft(p, now)
         if (d <= 3) { usesSoon.push(`${p.name} (${d <= 0 ? 'today' : d === 1 ? '1 day left' : `${d} days left`})`); score += 10 - d * 2 }
         else score += 1
       } else {
-        missing.push({ ...ing, estPrice: CATALOG[ing.name]?.price ?? 0 })
+        missing.push({ ...ing, estPrice: lookup(ing.name)?.price ?? 0 })
         score -= 3
       }
     }
@@ -227,18 +254,23 @@ export function cook(h: Household, recipeId: string, by: string, now = new Date(
 
 export const cartTotal = (lines: CartLine[]) => +lines.reduce((s, l) => s + l.qty * l.unitPrice, 0).toFixed(2)
 
+export const pendingApproval = (h: Household) => h.approvals.find((a) => a.status === 'pending')
+
+/** A held list is frozen: what the parent sees on the phone is exactly what they release. */
 export function addToCart(h: Household, by: string, items: { name: string; qty?: number }[]) {
+  const pending = pendingApproval(h)
+  if (pending) throw new Error(`The list is waiting for ${member(h, pending.approver).name} to decide on their phone. New items can go on after that.`)
   const added: CartLine[] = []
   for (const it of items) {
-    const name = it.name.toLowerCase().trim()
-    const cat = CATALOG[name]
+    const known = lookup(it.name)
+    const name = known?.name ?? it.name.toLowerCase().trim()
     const line = h.cart.find((l) => l.item === name)
     if (line) { line.qty += it.qty ?? 1; added.push(line); continue }
-    const l: CartLine = { item: name, qty: it.qty ?? 1, unitPrice: cat?.price ?? 0, addedBy: by, category: cat?.category ?? 'other' }
+    const l: CartLine = { item: name, qty: it.qty ?? 1, unitPrice: known?.price ?? 0, addedBy: by, category: known?.category ?? UNLISTED }
     h.cart.push(l)
     added.push(l)
   }
-  if (h.cartStatus !== 'held_for_approval') h.cartStatus = 'open'
+  h.cartStatus = 'open'
   return added
 }
 
@@ -247,20 +279,30 @@ export interface CheckoutDecision {
   total: number
   reason: string
   approval?: Approval
+  /** The list was already held: nothing new was sent. */
+  alreadyHeld?: boolean
 }
 
 /**
  * The rule the whole product is about. Whoever is speaking, a cart goes through only if
  * that person may spend that much on those categories. Otherwise it is held and the
- * approver is asked on their own phone; nothing said to the speaker can approve it.
+ * approver is asked on their own phone. Once held, nothing said to the device releases it,
+ * not even by a parent: only the approver's link does.
  */
 export function checkout(h: Household, speakerId: string, newId: () => string, now = new Date()): CheckoutDecision {
   const sp = member(h, speakerId)
+  const pending = pendingApproval(h)
+  if (pending) {
+    const who = member(h, pending.approver).name
+    return { outcome: 'held_for_approval', total: pending.total, reason: `already waiting for ${who}; only ${who}'s phone can release it`, approval: pending, alreadyHeld: true }
+  }
   if (h.cart.length === 0) return { outcome: 'empty', total: 0, reason: 'The cart is empty.' }
   const total = cartTotal(h.cart)
   const restricted = [...new Set(h.cart.filter((l) => PARENT_ONLY.includes(l.category)).map((l) => l.category))]
+  const unlisted = h.cart.filter((l) => l.category === UNLISTED).map((l) => l.item)
   const reasons: string[] = []
-  if (sp.role !== 'parent' && restricted.length) reasons.push(`${restricted.join(', ')} need a parent`)
+  if (sp.role !== 'parent' && restricted.length) reasons.push(`a parent has to OK ${restricted.join(', ')}`)
+  if (sp.role !== 'parent' && unlisted.length) reasons.push(`${unlisted.join(', ')} ${unlisted.length > 1 ? 'are' : 'is'} not on Hearth's price list, so a parent decides`)
   if (total > sp.spendLimit) reasons.push(`$${total} is over ${sp.name}'s limit of $${sp.spendLimit}`)
   if (!reasons.length) {
     h.cartStatus = 'ready_for_checkout'
@@ -276,7 +318,8 @@ export function checkout(h: Household, speakerId: string, newId: () => string, n
   return { outcome: 'held_for_approval', total, reason: approval.reason, approval }
 }
 
-/** Only reachable from the approver's own device (signed link), never from the voice channel. */
+/** Only reachable from the approver's own device (secret link), never from the voice channel.
+ * Approving releases exactly the lines the approver was shown, nothing added since. */
 export function decide(h: Household, approvalId: string, token: string, approve: boolean, now = new Date()) {
   const a = h.approvals.find((x) => x.id === approvalId)
   if (!a || a.token !== token) throw new Error('Unknown approval or bad token')
@@ -284,7 +327,7 @@ export function decide(h: Household, approvalId: string, token: string, approve:
   a.status = approve ? 'approved' : 'declined'
   a.decidedAt = now.toISOString()
   h.cartStatus = approve ? 'ready_for_checkout' : 'declined'
-  if (!approve) h.cart = []
+  h.cart = approve ? a.lines.map((l) => ({ ...l })) : []
   return a
 }
 

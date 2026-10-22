@@ -37,7 +37,7 @@ footer{padding:10px 20px 24px;color:var(--muted);font-size:12px;max-width:1500px
 <body>
 <header>
   <h1>🔥 Hearth</h1><span class="tag">One shared kitchen memory for everyone who talks to the home assistant</span>
-  <a href="/phone" target="_blank" rel="noopener">Open Ada's phone →</a>
+  <a id="phone" href="/phone" target="_blank" rel="noopener">Open the parents' phones →</a>
 </header>
 <main>
   <section class="device">
@@ -61,6 +61,11 @@ const $ = (id) => document.getElementById(id)
 const NAMES = { ada: 'Ada', ben: 'Ben', leo: 'Leo', mia: 'Mia' }
 let speaker = 'ada'
 const history = []
+// Each browser gets its own household, so one visitor's test never shows up in another's demo
+let H = ''
+try { H = localStorage.getItem('hearth-h') || '' } catch {}
+if (!/^[a-z0-9-]{1,40}$/.test(H)) { H = 'v-' + Math.random().toString(36).slice(2, 12); try { localStorage.setItem('hearth-h', H) } catch {} }
+$('phone').href = '/phone?h=' + H
 $('mcpurl').textContent = location.origin + '/mcp'
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 
@@ -77,7 +82,7 @@ function showRpc(rpc) {
 }
 
 async function refresh() {
-  const s = await (await fetch('/api/state')).json()
+  const s = await (await fetch('/api/state?h=' + H)).json()
   const today = new Date().toISOString().slice(0, 10)
   const left = (e) => e ? Math.round((Date.parse(e) - Date.parse(today)) / 864e5) : null
   $('pantry').innerHTML = s.pantry.map((p) => { const d = left(p.expires); return `<div><span>${esc(p.name)} <span class="small">${p.qty} ${esc(p.unit)}</span></span><span class="${d !== null && d <= 3 ? 'soon' : 'small'}">${d === null ? '' : d <= 0 ? 'today' : d + 'd left'}</span></div>` }).join('')
@@ -89,7 +94,7 @@ async function refresh() {
 // ---- MCP App host bridge (SEP-1865 over postMessage) --------------------------------
 const views = new Map()
 async function mountApp(ev) {
-  const r = await (await fetch('/api/proxy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'resource', uri: ev.uiUri }) })).json()
+  const r = await (await fetch('/api/proxy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'resource', uri: ev.uiUri, h: H }) })).json()
   const html = r.result?.contents?.[0]?.text
   if (!html) return
   const f = document.createElement('iframe')
@@ -109,7 +114,7 @@ window.addEventListener('message', async (e) => {
   }
   if (m.method === 'ui/notifications/size-changed') { if (m.params?.height) frame.style.height = Math.min(520, m.params.height + 8) + 'px'; return }
   if (m.method === 'tools/call') {
-    const r = await (await fetch('/api/proxy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'tool', name: m.params.name, args: m.params.arguments, speaker }) })).json()
+    const r = await (await fetch('/api/proxy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'tool', name: m.params.name, args: m.params.arguments, speaker, h: H }) })).json()
     reply(r.result ?? { content: [{ type: 'text', text: r.error ?? 'failed' }], isError: true }); if (r.rpc) showRpc(r.rpc); refresh(); return
   }
   if (m.id !== undefined) reply({})
@@ -121,7 +126,7 @@ async function send(text) {
   $('say').value = ''
   add(`<div class="by">${NAMES[speaker]}</div>${esc(text)}`, 'msg u')
   const thinking = add('…', 'tool')
-  const r = await (await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ speaker, utterance: text, history }) })).json()
+  const r = await (await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ speaker, utterance: text, history, h: H }) })).json()
   thinking.remove()
   if (r.error) { add(esc(r.error), 'tool'); return }
   for (const ev of r.events) {
@@ -136,7 +141,7 @@ async function send(text) {
 }
 $('send').onclick = () => send($('say').value)
 $('say').onkeydown = (e) => { if (e.key === 'Enter') send($('say').value) }
-$('reset').onclick = async () => { await fetch('/api/reset', { method: 'POST' }); history.length = 0; $('screen').innerHTML = ''; refresh() }
+$('reset').onclick = async () => { await fetch('/api/reset?h=' + H, { method: 'POST' }); history.length = 0; $('screen').innerHTML = ''; refresh() }
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition
 if (!SR) $('mic').style.display = 'none'

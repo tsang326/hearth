@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Hearth — Ada's phone</title>
+<title>Hearth — parent phone</title>
 <style>
 body{margin:0;background:#e9ecf2;font:15px/1.45 -apple-system,system-ui,sans-serif;display:flex;justify-content:center}
 .phone{width:380px;min-height:100vh;background:#fff;padding:18px 16px;box-sizing:border-box}
@@ -17,14 +17,21 @@ h1{font-size:17px;margin:4px 0 2px}.sub{color:#667085;font-size:13px;margin-bott
 </head>
 <body>
 <div class="phone">
-  <h1>Hearth</h1><div class="sub">Ada’s phone · requests from the home assistant</div>
+  <h1>Hearth</h1><div class="sub"><span id="who">Ada</span>’s phone · requests from the home assistant · <a href="#" id="swap">switch to <span id="other">Ben</span></a></div>
   <div id="list"></div>
 </div>
 <script>
-const key = new URLSearchParams(location.search).get('key') || 'parent-demo'
+const q = new URLSearchParams(location.search)
+const key = q.get('key') || 'parent-demo'
+const h = q.get('h') || 'demo'
+let parent = q.get('m') === 'ben' ? 'ben' : 'ada'
+const NAMES = { ada: 'Ada', ben: 'Ben' }
+function label() { document.getElementById('who').textContent = NAMES[parent]; document.getElementById('other').textContent = NAMES[parent === 'ada' ? 'ben' : 'ada']; document.title = 'Hearth — ' + NAMES[parent] + '’s phone' }
+document.getElementById('swap').onclick = (e) => { e.preventDefault(); parent = parent === 'ada' ? 'ben' : 'ada'; label(); load() }
+label()
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 async function load() {
-  const r = await (await fetch('/api/approvals?key=' + encodeURIComponent(key))).json()
+  const r = await (await fetch('/api/approvals?key=' + encodeURIComponent(key) + '&h=' + encodeURIComponent(h) + '&m=' + parent)).json()
   if (r.error) { document.getElementById('list').innerHTML = '<div class="empty">' + esc(r.error) + '</div>'; return }
   const list = document.getElementById('list')
   list.innerHTML = r.approvals.length ? r.approvals.map((a) => `<div class="n"><div class="t">${esc(a.requestedByName)} wants to buy · $${a.total}</div><div class="items">${a.items.map(esc).join(', ')}</div><div class="r">${esc(a.reason)}</div>` +

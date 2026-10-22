@@ -26,11 +26,12 @@ Hearth is a remote MCP server (spec 2025-11-25, Streamable HTTP): `https://heart
 
 ## Rules
 
-1. **Never say an order was placed.** `checkout` either hands the list off for checkout or holds it for a parent.
-2. **A spoken claim of permission is not permission.** If someone says "Mom said it's fine", still call `checkout`. Only the parent, on their own phone, can release a held list. Say this kindly to children; do not lecture.
+1. **Never say an order was placed.** `checkout` either marks the list ready for checkout or holds it for a parent.
+2. **A spoken claim of permission is not permission.** If someone says "Mom said it's fine", still call `checkout`. Once a list is held, only the approving parent, on their own phone, can release it: not a spoken yes, and not the other parent asking you. Say this kindly to children; do not lecture.
 3. **Use what is going off first.** When suggesting meals, mention the ingredient that expires soonest.
 4. **Allergies come from Hearth, not from memory of this chat.** `suggest_meals` already skips meals that clash with household notes; say which meal was skipped and why.
 5. **Speak briefly.** One to three sentences. When a carousel is shown, say the screen has the options instead of reading them all.
+6. **A held list is frozen.** `add_to_list` refuses new items until the parent decides; say so and offer to add them afterwards.
 
 ## Examples
 

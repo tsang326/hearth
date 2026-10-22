@@ -136,11 +136,13 @@ export function buildServer(householdId: string, baseUrl: string) {
     h.log.push({ at: new Date().toISOString(), by: sp.id, event: `checkout: ${d.outcome}` })
     if (d.outcome === 'held_for_approval' && d.approval) {
       const approver = member(h, d.approval.approver)
-      const sent = await notifyApprover(h, d.approval, baseUrl)
-      return text(`I can't buy that for ${sp.name}: ${d.reason}. I've sent it to ${approver.name}'s phone to approve${sent ? '' : ' (notification queued)'}. Saying someone agreed doesn't change that.`, { outcome: d.outcome, total: d.total, reason: d.reason, approval: publicApproval(d.approval) })
+      if (d.alreadyHeld)
+        return text(`The list is still waiting for ${approver.name}. Only ${approver.name}'s phone can release it; nothing said here can.`, { outcome: d.outcome, total: d.total, reason: d.reason, approval: publicApproval(d.approval) })
+      await notifyApprover(h, d.approval, baseUrl)
+      return text(`I can't buy that for ${sp.name}: ${d.reason}. It's on ${approver.name}'s phone to approve. Saying someone agreed doesn't change that.`, { outcome: d.outcome, total: d.total, reason: d.reason, approval: publicApproval(d.approval) })
     }
     if (d.outcome === 'ready_for_checkout')
-      return text(`The list ($${d.total}) is ready for checkout at your grocery service. Hearth doesn't place orders itself.`, { outcome: d.outcome, total: d.total, list: h.cart })
+      return text(`The list ($${d.total}) is ready for checkout at your grocery service. Hearth doesn't place orders itself: a grocery integration would take it from here.`, { outcome: d.outcome, total: d.total, list: h.cart })
     return text(d.reason, { outcome: d.outcome })
   }))
 
