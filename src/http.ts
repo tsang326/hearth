@@ -114,11 +114,11 @@ export async function handleChat(req: IncomingMessage & { body?: unknown }, res:
   const store = getStore()
   const lim = (name: string, dflt: number) => Number(process.env[name] ?? dflt)
   const over = async () =>
-    (await store.hit(`dev:${household}`)) > lim('HEARTH_CHAT_PER_DEVICE_HOUR', 30)
-    || (await store.hit(`dev:${household}`, 'day')) > lim('HEARTH_CHAT_PER_DEVICE_DAY', 80)
-    || (await store.hit(`ip:${ip}`)) > lim('HEARTH_CHAT_PER_IP_HOUR', 40)
-    || (await store.hit('all')) > lim('HEARTH_CHAT_PER_HOUR', 60)
-    || (await store.hit('all', 'day')) > lim('HEARTH_CHAT_PER_DAY', 150)
+    (await store.hit(`dev:${household}`)) > lim('HEARTH_CHAT_PER_DEVICE_HOUR', 15)
+    || (await store.hit(`dev:${household}`, 'day')) > lim('HEARTH_CHAT_PER_DEVICE_DAY', 25)
+    || (await store.hit(`ip:${ip}`)) > lim('HEARTH_CHAT_PER_IP_HOUR', 20)
+    || (await store.hit('all')) > lim('HEARTH_CHAT_PER_HOUR', 15)
+    || (await store.hit('all', 'day')) > lim('HEARTH_CHAT_PER_DAY', 40)
   if (await over())
     return json(res, 429, { error: 'The demo chat is resting for now, try again later. The MCP server at /mcp stays open, and the video shows the full flow.' })
   try {
