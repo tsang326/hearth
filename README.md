@@ -22,7 +22,7 @@ held list (frozen) ─► parent's phone (/phone) ─► secret approve/decline 
 
 | Part | What it is |
 |---|---|
-| `src/server.ts` | **Self-hosted MCP server**, `@modelcontextprotocol/sdk` 1.32.1, protocol **2025-11-25**, Streamable HTTP at `/mcp`, stateless transport. Tools: `household_overview`, `suggest_meals` (MCP App), `cook_meal`, `update_pantry`, `remember`, `add_to_list`, `checkout`, `approval_status`. Tools answer from local data only (no model calls), in a few milliseconds. |
+| `src/server.ts` | **Self-hosted MCP server**, `@modelcontextprotocol/sdk` 1.32.1, protocol **2025-11-25**, Streamable HTTP at `/mcp`, stateless transport. Tools: `household_overview`, `suggest_meals` (MCP App), `cook_meal`, `update_pantry`, `remember`, `add_to_list`, `checkout`, `approval_status`. No tool runs a model: each one reads and writes household state and does nothing else, which keeps it inside the 500 ms add-on budget. The console prints the real round trip beside every call. |
 | `src/ui.ts` | **MCP App** (`ext-apps` 1.7.5): the meal carousel. Its buttons call the server's own tools through the host. |
 | `skills/hearth/SKILL.md` | **Agent Skill** (open `SKILL.md` format) describing when and how to use Hearth. The simulated host reads it at runtime and adds it to the assistant's instructions. |
 | `src/agent.ts`, `public/index.html` | **Simulated Alexa+ experience**: a web host with voice in/out, a speaker picker standing in for voice recognition, Claude as the assistant (Anthropic SDK tool runner over the MCP tools, falling back to OpenAI gpt-4.1 function calling with the same tools if the Anthropic call fails), an MCP App bridge, and an inspector that shows every JSON-RPC message. |
