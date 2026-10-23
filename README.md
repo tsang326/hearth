@@ -53,7 +53,7 @@ npm test                                  # domain rules: spending, holds, aller
 
 To try the MCP server alone, run `npx @modelcontextprotocol/inspector` and connect to `http://localhost:3000/mcp` (Streamable HTTP). No API key is needed for that.
 
-Deploying to Vercel: the functions are in `api/`. Set `ANTHROPIC_API_KEY` (console only; optional `OPENAI_API_KEY` as a fallback, model `HEARTH_OPENAI_MODEL`, default `gpt-4.1`) and connect an Upstash Redis store (`KV_REST_API_URL`, `KV_REST_API_TOKEN`). Optional: `HEARTH_PARENT_KEY` (parent phone key, default `parent-demo`), `HEARTH_CHAT_PER_DEVICE_HOUR` / `_PER_DEVICE_DAY` / `_PER_IP_HOUR` / `_PER_HOUR` / `_PER_DAY` (console limits, defaults 15 / 25 / 20 / 15 / 40), `HEARTH_MCP_PER_IP_HOUR`.
+Deploying to Vercel: the functions are in `api/`. Set `ANTHROPIC_API_KEY` (console only; optional `OPENAI_API_KEY` as a fallback, model `HEARTH_OPENAI_MODEL`, default `gpt-4.1`) and connect an Upstash Redis store (`KV_REST_API_URL`, `KV_REST_API_TOKEN`). Optional: `HEARTH_PARENT_KEY` (parent phone key, default `parent-demo`), `HEARTH_CHAT_PER_DEVICE_HOUR` / `_PER_DEVICE_DAY` / `_PER_IP_HOUR` / `_PER_HOUR` / `_PER_DAY` (console limits; defaults 10 / 15 / 15 / 10 / 25, raised to 15 / 30 / 25 / 20 / 60 during judging, 9–20 Nov), `HEARTH_MCP_PER_IP_HOUR`.
 
 State is in memory locally; set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (or Vercel KV variables) to persist it. Optional email to the approver: `RESEND_API_KEY`, `HEARTH_APPROVER_EMAIL`.
 

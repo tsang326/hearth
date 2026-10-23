@@ -101,6 +101,15 @@ import { hostKey, proxy, runTurn, type Turn } from './agent.js'
 const mcpUrlFor = (req: IncomingMessage, household: string) => `${process.env.HEARTH_MCP_URL ?? baseUrl(req) + '/mcp'}?h=${encodeURIComponent(household)}`
 const MEMBER_IDS = ['ada', 'ben', 'leo', 'mia']
 
+// Judging runs 9-20 Nov 2026: the console chat gets a larger allowance then, a small one before and after
+const JUDGING_FROM = Date.parse('2026-11-08T17:00:00Z') // 9 Nov 00:00 VN
+const JUDGING_TO = Date.parse('2026-11-20T17:00:00Z')
+export function chatPhase(now = Date.now()) {
+  return now >= JUDGING_FROM && now < JUDGING_TO
+    ? { name: 'judging', deviceHour: 15, deviceDay: 30, ipHour: 25, hour: 20, day: 60 }
+    : { name: 'pre', deviceHour: 10, deviceDay: 15, ipHour: 15, hour: 10, day: 25 }
+}
+
 /** POST /api/chat {speaker, utterance, history, h} */
 export async function handleChat(req: IncomingMessage & { body?: unknown }, res: ServerResponse) {
   if (req.method !== 'POST') return json(res, 405, { error: 'POST' })
@@ -113,12 +122,13 @@ export async function handleChat(req: IncomingMessage & { body?: unknown }, res:
   const ip = clientIp(req)
   const store = getStore()
   const lim = (name: string, dflt: number) => Number(process.env[name] ?? dflt)
+  const p = chatPhase()
   const over = async () =>
-    (await store.hit(`dev:${household}`)) > lim('HEARTH_CHAT_PER_DEVICE_HOUR', 15)
-    || (await store.hit(`dev:${household}`, 'day')) > lim('HEARTH_CHAT_PER_DEVICE_DAY', 25)
-    || (await store.hit(`ip:${ip}`)) > lim('HEARTH_CHAT_PER_IP_HOUR', 20)
-    || (await store.hit('all')) > lim('HEARTH_CHAT_PER_HOUR', 15)
-    || (await store.hit('all', 'day')) > lim('HEARTH_CHAT_PER_DAY', 40)
+    (await store.hit(`dev:${household}`)) > lim('HEARTH_CHAT_PER_DEVICE_HOUR', p.deviceHour)
+    || (await store.hit(`dev:${household}`, 'day')) > lim('HEARTH_CHAT_PER_DEVICE_DAY', p.deviceDay)
+    || (await store.hit(`ip:${ip}`)) > lim('HEARTH_CHAT_PER_IP_HOUR', p.ipHour)
+    || (await store.hit('all')) > lim('HEARTH_CHAT_PER_HOUR', p.hour)
+    || (await store.hit('all', 'day')) > lim('HEARTH_CHAT_PER_DAY', p.day)
   if (await over())
     return json(res, 429, { error: 'The demo chat is resting for now, try again later. The MCP server at /mcp stays open, and the video shows the full flow.' })
   try {
